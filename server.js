@@ -222,10 +222,19 @@ function bearerToken(req) {
   return match?.[1];
 }
 
+function matchesCompanyId(value, companyId) {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0 && String(value) === companyId;
+  return typeof value === 'string' && /^[1-9][0-9]*$/.test(value) && value === companyId;
+}
+
+function calendarDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value) ? value.slice(0, 10) : null;
+}
+
 function assertCompanyScope(records, companyId) {
   for (const record of records) {
     const attributeId = record?.attributes?.company_id;
-    if (attributeId !== companyId) {
+    if (!matchesCompanyId(attributeId, companyId)) {
       throw authError('Upstream company scope mismatch', 403);
     }
     if (record.relationships && Object.hasOwn(record.relationships, 'company')) {
@@ -257,7 +266,7 @@ function relationshipId(record, name, expectedType, allowNull = false) {
 
 function assertInspectionScope(records, companyId, connectionId) {
   for (const record of records) {
-    if (Object.hasOwn(record?.attributes || {}, 'company_id') && record.attributes.company_id !== companyId) {
+    if (Object.hasOwn(record?.attributes || {}, 'company_id') && !matchesCompanyId(record.attributes.company_id, companyId)) {
       throw authError('Upstream inspection company attribute mismatch', 403);
     }
     if (relationshipId(record, 'company', 'company') !== companyId) throw authError('Upstream inspection company scope mismatch', 403);
@@ -440,8 +449,8 @@ function createPortal(options = {}) {
         totalInspections: Number(statAttrs.total_inspections_count || attrs.total_inspections_count || 0),
         buyingInspections: Number(statAttrs.buying_inspections_count || 0),
         sellingInspections: Number(statAttrs.selling_inspections_count || 0),
-        firstInspection: statAttrs.first_inspection_date || null,
-        lastInspection: statAttrs.last_inspection_date || null,
+        firstInspection: calendarDate(statAttrs.first_inspection_date),
+        lastInspection: calendarDate(statAttrs.last_inspection_date),
         overallCount: Number(statAttrs.overall_inspections_count || 0)
       },
       tier: sample.tier,
