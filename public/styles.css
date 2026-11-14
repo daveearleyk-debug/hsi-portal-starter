@@ -195,7 +195,7 @@ button:focus-visible,
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
 }
 
@@ -342,4 +342,11 @@ button:focus-visible,
   border: 1px solid var(--line);
   border-radius: var(--radius);
   font: inherit;
+}
+
+.inspection-kind {
+  margin: 0 0 5px;
+  color: var(--gold-dark);
+  font-size: 12px;
+  font-weight: 750;
 }

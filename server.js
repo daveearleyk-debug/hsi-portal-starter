@@ -319,14 +319,20 @@ function scopedInspections(records, companyId, connectionId) {
     const buyingAgentId = relationshipId(record, 'buying_agent', 'connection', true);
     const sellingAgentId = relationshipId(record, 'selling_agent', 'connection', true);
     // Upstream agent filters can return historical matches. Only expose a
-    // record when its current buying-agent relationship matches this grant.
-    return buyingAgentId === connectionId;
+    // buyer-side record, or an unrepresented-buyer pre-sale listing for this agent.
+    return buyingAgentId === connectionId || (buyingAgentId === null && sellingAgentId === connectionId);
   });
 }
 
-function mapInspection(insp) {
+function isPreSaleInspection(insp, connectionId) {
+  return typeof connectionId === 'string' && insp.relationships?.buying_agent?.data === null && insp.relationships?.selling_agent?.data?.id === connectionId;
+}
+
+function mapInspection(insp, connectionId) {
   const attrs = insp.attributes || {};
+  const isPreSale = isPreSaleInspection(insp, connectionId);
   return {
+    classification: isPreSale ? 'Pre-sale inspection' : 'Buyer inspection',
     date: attrs.datetime ? new Date(attrs.datetime).toISOString().slice(0, 10) : '',
     location: attrs.property_address || [attrs.property_city, attrs.property_state].filter(Boolean).join(', ') || 'Address unavailable',
     services: [attrs.service_names, attrs.service_add_on_names].filter(Boolean).join(' + '),
@@ -497,12 +503,13 @@ function createPortal(options = {}) {
         totalInspections: Number(statAttrs.total_inspections_count || attrs.total_inspections_count || 0),
         buyingInspections: Number(statAttrs.buying_inspections_count || 0),
         sellingInspections: Number(statAttrs.selling_inspections_count || 0),
+        preSaleInspections: authorizedInspections.filter(inspection => isPreSaleInspection(inspection, connectionId)).length,
         firstInspection: calendarDate(statAttrs.first_inspection_date),
         lastInspection: calendarDate(statAttrs.last_inspection_date),
         overallCount: Number(statAttrs.overall_inspections_count || 0)
       },
       tier: sample.tier,
-      inspections: authorizedInspections.map(mapInspection)
+      inspections: authorizedInspections.map(inspection => mapInspection(inspection, connectionId))
     };
   }
 

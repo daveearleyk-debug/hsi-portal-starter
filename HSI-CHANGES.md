@@ -18,7 +18,7 @@ profile images and excluding inspection links.
   remain active. Original temporary grants still expire within 24 hours.
 - No live credentials, agent photos or inspection records are packaged here.
 
-Verification: syntax checks and 92 automated tests passed locally. Live API
+Verification: syntax checks and 98 automated tests passed locally. Live API
 response structures were also exercised locally; hosted browser photo display
 and navigation must be checked after deployment.
 
@@ -39,3 +39,16 @@ removed or replaced and redeployed. Changing PORTAL_SIGNING_SECRET does not
 revoke permanent links: remove/replace the relevant agent hash instead.
 Existing temporary links keep their original expiration and signing checks.
 All company and buyer-only inspection restrictions still apply.
+
+Pre-sale rule: a record is included when this agent is the buying agent, or
+when the buying-agent relationship is explicitly null and this agent is the
+listing agent. The latter records are labelled Pre-sale inspection. A listing
+with another buying agent stays excluded. Missing/ambiguous relationships
+still fail closed, and company/agent checks remain active. Existing access
+links and relationship statistics are preserved.
+
+Relationship Snapshot adds a fourth Pre-sales tile, calculated using the same
+classification rule as the displayed history. Existing Spectora Total,
+Buying and Selling values remain aggregate provider statistics; Pre-sales
+are part of Selling and are not added again to Total. Four metrics use a
+readable two-by-two grid.

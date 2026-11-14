@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname,'../public/app.js'),'utf8');
 const token = (exp=Math.floor(Date.now()/1000)+3600) => Buffer.from(JSON.stringify({v:1,connectionId:'17',exp})).toString('base64url')+'.synthetic-signature';
-async function browser(grant,denyClipboard=false) {
+async function browser(grant,denyClipboard=false,inspectionRows=[],extraStats={}) {
  const nodes=[];
  function node(tag) {
   const n={tag,children:[],events:{},hidden:false,value:'',style:{setProperty(){}},
@@ -18,7 +18,7 @@ async function browser(grant,denyClipboard=false) {
  const app=node('main'),theme=node('meta'),storage=new Map();
  const location={origin:'https://portal.example.test',pathname:'/agent/17',search:'',hash:'#grant='+grant};
  const state={clipboard:null,authorization:null,nodes,app,storage};
- const payload={meta:{mode:'live'},company:{brand:{},appName:'HSI',name:'HSI',tagline:'',phone:'8674474663',bookingUrl:'https://example.test/book',whatsappUrl:'https://wa.me/18674474663',website:'https://example.test',license:'RHI'},agent:{firstName:'Example',lastName:'Agent'},tier:{label:'Partner'},stats:{totalInspections:1,buyingInspections:1,sellingInspections:0},inspections:[]};
+ const payload={meta:{mode:'live'},company:{brand:{},appName:'HSI',name:'HSI',tagline:'',phone:'8674474663',bookingUrl:'https://example.test/book',whatsappUrl:'https://wa.me/18674474663',website:'https://example.test',license:'RHI'},agent:{firstName:'Example',lastName:'Agent'},tier:{label:'Partner'},stats:{totalInspections:1,buyingInspections:1,sellingInspections:0,...extraStats},inspections:inspectionRows};
  const context={URL,URLSearchParams,atob,Date,location,
   history:{replaceState(){location.hash=''}},
   sessionStorage:{setItem(k,v){storage.set(k,v)},getItem(k){return storage.get(k)}},
@@ -66,4 +66,20 @@ test('permanent access link copies into a new browser without needing an expiry 
  const second=await browser(copied);
  assert.equal(second.authorization,'Bearer '+grant);
  assert.ok(first.nodes.some(n=>n.textContent?.includes('Permanent private link copied')));
+});
+
+test('history renders both buyer and pre-sale labels under a shared history heading',async()=>{
+ const common={date:'2026-11-01',services:'Inspection',inspector:'Example',status:'Report Published'};
+ const state=await browser(token(),false,[{...common,location:'Example 1',classification:'Buyer inspection'},{...common,location:'Example 2',classification:'Pre-sale inspection'}]);
+ assert.ok(state.nodes.some(n=>n.textContent==='Inspection History'));
+ assert.ok(state.nodes.some(n=>n.textContent==='Buyer inspection'));
+ assert.ok(state.nodes.some(n=>n.textContent==='Pre-sale inspection'));
+});
+
+test('relationship snapshot renders a separate pre-sale metric with its value',async()=>{
+ const state=await browser(token(),false,[],{preSaleInspections:7});
+ const tile=state.nodes.find(n=>n.className==='metric'&&n.children.some(c=>c.textContent==='Pre-sales'));
+ assert.ok(tile);
+ assert.ok(tile.children.some(c=>c.textContent==='7'));
+ assert.ok(state.nodes.some(n=>n.textContent==='Pre-sales are included in the selling count.'));
 });

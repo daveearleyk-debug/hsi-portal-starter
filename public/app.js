@@ -180,8 +180,10 @@ function renderDashboard(data) {
       el('div', { class: 'metrics' }, [
         el('div', { class: 'metric' }, [el('strong', { text: stats.totalInspections }), el('span', { text: 'Total' })]),
         el('div', { class: 'metric' }, [el('strong', { text: stats.buyingInspections }), el('span', { text: 'Buying' })]),
-        el('div', { class: 'metric' }, [el('strong', { text: stats.sellingInspections }), el('span', { text: 'Selling' })])
-      ])
+        el('div', { class: 'metric' }, [el('strong', { text: stats.sellingInspections }), el('span', { text: 'Selling' })]),
+        el('div', { class: 'metric' }, [el('strong', { text: stats.preSaleInspections ?? 0 }), el('span', { text: 'Pre-sales' })])
+      ]),
+      el('p', { class: 'privacy-note', text: 'Pre-sales are included in the selling count.' })
     ])
   );
 
@@ -203,7 +205,7 @@ function renderDashboard(data) {
   );
 
   const timeline = el('div', { class: 'timeline' });
-  if (!inspections.length) timeline.append(el('p', { class: 'privacy-note', text: 'No buyer inspections to display.' }));
+  if (!inspections.length) timeline.append(el('p', { class: 'privacy-note', text: 'No inspections to display.' }));
   for (const inspection of inspections) {
     const date = monthDay(inspection.date);
     timeline.append(
@@ -214,6 +216,7 @@ function renderDashboard(data) {
         ]),
         el('div', {}, [
           el('p', { class: 'inspection-title', text: inspection.location || inspection.address }),
+          ...(inspection.classification ? [el('p', { class: 'inspection-kind', text: inspection.classification })] : []),
           el('p', {
             class: 'inspection-meta',
             text: `${inspection.services} | ${inspection.inspector} | ${inspection.status}`
@@ -229,7 +232,7 @@ function renderDashboard(data) {
 
   app.append(
     el('section', { class: 'section' }, [
-      el('h2', { text: data.meta?.mode === 'live' ? 'Buyer Inspection History' : 'Inspection History' }),
+      el('h2', { text: 'Inspection History' }),
       timeline
     ])
   );
