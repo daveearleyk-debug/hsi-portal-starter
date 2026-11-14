@@ -15,10 +15,10 @@ profile images and excluding inspection links.
   Inspection links are constructed from validated API slugs, not report IDs.
 - Missing, malformed or canceled-record slugs do not produce clickable links.
 - API credentials remain server-side. Signed grant/company/relationship checks
-  remain active. Grant links still expire within 24 hours.
+  remain active. Original temporary grants still expire within 24 hours.
 - No live credentials, agent photos or inspection records are packaged here.
 
-Verification: syntax checks and 85 automated tests passed locally. Live API
+Verification: syntax checks and 92 automated tests passed locally. Live API
 response structures were also exercised locally; hosted browser photo display
 and navigation must be checked after deployment.
 
@@ -30,3 +30,12 @@ so a second computer can open the same portal without generating a new link.
 The grant is not extended: its original expiry and agent binding still apply.
 If clipboard permission is unavailable, a selected read-only field permits
 manual copying. The base website address remains an unauthenticated entry.
+
+Permanent agent links are optional. PORTAL_AGENT_ACCESS_HASHES is a JSON object
+mapping each company-specific connection ID to a SHA-256 hash of its private
+p1 access code. Only the hash is configured in Render; the private code stays
+in the bookmarkable agent link. A matching hash authorizes that agent until
+removed or replaced and redeployed. Changing PORTAL_SIGNING_SECRET does not
+revoke permanent links: remove/replace the relevant agent hash instead.
+Existing temporary links keep their original expiration and signing checks.
+All company and buyer-only inspection restrictions still apply.

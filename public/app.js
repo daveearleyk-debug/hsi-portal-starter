@@ -63,9 +63,12 @@ function applyBrand(company) {
 }
 
 function renderPortalAccess() {
+  const permanent = /^p1\.[A-Za-z0-9_-]{43}$/.test(portalGrant);
   const status = el('p', {
     class: 'privacy-note', 'aria-live': 'polite',
-    text: 'Use this private link on another computer or device. Its original expiry still applies.'
+    text: permanent
+      ? 'Bookmark this private link to open your portal on any device. It stays valid until Home Safe Inspection Services revokes it.'
+      : 'Use this private link on another computer or device. Its original expiry still applies.'
   });
   const fallback = el('input', {
     class: 'portal-link-fallback', type: 'text', readonly: true, hidden: true,
@@ -77,10 +80,12 @@ function renderPortalAccess() {
   button.addEventListener('click', async () => {
     let link;
     try {
-      const raw = portalGrant.split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
-      const claims = JSON.parse(atob(raw.padEnd(Math.ceil(raw.length / 4) * 4, '=')));
-      if (claims.connectionId !== getUuid() || !Number.isSafeInteger(claims.exp) || claims.exp <= Math.floor(Date.now() / 1000)) {
-        throw new Error('Expired or mismatched link');
+      if (!permanent) {
+        const raw = portalGrant.split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
+        const claims = JSON.parse(atob(raw.padEnd(Math.ceil(raw.length / 4) * 4, '=')));
+        if (claims.connectionId !== getUuid() || !Number.isSafeInteger(claims.exp) || claims.exp <= Math.floor(Date.now() / 1000)) {
+          throw new Error('Expired or mismatched link');
+        }
       }
       const url = new URL(`/agent/${encodeURIComponent(getUuid())}`, location.origin);
       url.hash = new URLSearchParams({ grant: portalGrant }).toString();
@@ -95,7 +100,9 @@ function renderPortalAccess() {
       await navigator.clipboard.writeText(link);
       fallback.hidden = true;
       fallback.value = '';
-      status.textContent = 'Private link copied. Paste it on another device. It keeps its original expiry.';
+      status.textContent = permanent
+        ? 'Permanent private link copied. Save it as a bookmark or open it on another device.'
+        : 'Private link copied. Paste it on another device. It keeps its original expiry.';
     } catch {
       fallback.value = link;
       fallback.hidden = false;

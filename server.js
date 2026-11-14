@@ -97,6 +97,7 @@ function createConfig(env = process.env) {
     apiKey: env.SPECTORA_API_KEY || '',
     companyId: mode === 'live' ? validatedPositiveDecimalId(env.SPECTORA_COMPANY_ID, 'SPECTORA_COMPANY_ID') : '',
     signingSecret: env.PORTAL_SIGNING_SECRET || '',
+    agentAccessHashes: parseAgentAccessHashes(env.PORTAL_AGENT_ACCESS_HASHES),
     upstreamTimeoutMs: boundedInteger(env.UPSTREAM_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, 100, 30_000),
     upstreamMaxBytes: boundedInteger(env.UPSTREAM_MAX_BYTES, DEFAULT_MAX_BYTES, 1024, 5_000_000),
     rateLimitMax: boundedInteger(env.RATE_LIMIT_MAX, 60, 1, 1000),
@@ -134,6 +135,42 @@ function createConfig(env = process.env) {
       label: env.DEMO_TIER_LABEL
     }
   };
+}
+
+function parseAgentAccessHashes(value) {
+  const result = Object.create(null);
+  if (!value) return result;
+  if (value.length > 100000) throw new Error('PORTAL_AGENT_ACCESS_HASHES is too large');
+  let entries;
+  try { entries = JSON.parse(value); } catch { throw new Error('PORTAL_AGENT_ACCESS_HASHES must be a JSON object'); }
+  if (!entries || Array.isArray(entries) || typeof entries !== 'object' || Object.keys(entries).length > 500) {
+    throw new Error('PORTAL_AGENT_ACCESS_HASHES must contain at most 500 agent/hash pairs');
+  }
+  for (const [id, hash] of Object.entries(entries)) {
+    validatedPositiveDecimalId(id, 'Permanent access connection ID');
+    if (typeof hash !== 'string' || !/^[a-fA-F0-9]{64}$/.test(hash)) {
+      throw new Error('Permanent access values must be SHA-256 hashes');
+    }
+    result[id] = hash.toLowerCase();
+  }
+  return result;
+}
+
+function verifyPortalAccess(grant, connectionId, config, options = {}) {
+  validatedPositiveDecimalId(connectionId, 'Spectora connection ID');
+  if (typeof grant === 'string' && grant.startsWith('p1.')) {
+    const expectedHash = config.agentAccessHashes[connectionId];
+    if (!/^p1\.[A-Za-z0-9_-]{43}$/.test(grant) || !expectedHash) {
+      throw authError('Invalid or revoked portal access link');
+    }
+    const suppliedHash = crypto.createHash('sha256').update(grant).digest();
+    if (!crypto.timingSafeEqual(Buffer.from(expectedHash, 'hex'), suppliedHash)) {
+      throw authError('Invalid or revoked portal access link');
+    }
+    return { type: 'permanent', connectionId };
+  }
+  const claims = verifyGrant(grant, connectionId, config.signingSecret, options);
+  return { type: 'temporary', connectionId, exp: claims.exp };
 }
 
 function profilePhoto(value, fallback) {
@@ -502,7 +539,7 @@ function createPortal(options = {}) {
           try {
             validatedPositiveDecimalId(connectionId, 'Spectora connection ID');
             grant = bearerToken(req);
-            verifyGrant(grant, connectionId, config.signingSecret, { now: nowSeconds() });
+            verifyPortalAccess(grant, connectionId, config, { now: nowSeconds() });
           }
           catch (error) { status = error.statusCode || 401; sendJson(res, status, { error: error.message }); return; }
           const key = crypto.createHash('sha256').update(`${grant}:${connectionId}`).digest('hex');
@@ -560,6 +597,7 @@ module.exports = {
   createConfig,
   createGrant,
   verifyGrant,
+  verifyPortalAccess,
   createHttpsUpstream,
   readUpstreamJson,
   createPortal,

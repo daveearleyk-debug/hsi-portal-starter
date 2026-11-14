@@ -1,0 +1,30 @@
+PERMANENT AGENT LINK SETUP — SHANE BENNETT
+
+1. Upload the extracted update contents to the GitHub repository root, keeping
+   the public, test and scripts folders. Commit, then deploy the latest commit
+   in Render. Existing environment variables can remain as they are.
+2. On your Windows computer, open scripts/New-PermanentAgentLink.ps1 in Notepad.
+   Copy its contents and paste the complete block into PowerShell. It generates
+   a random access code locally and copies the configuration JSON for Render.
+   Keep that PowerShell window open. Do not rerun the generator accidentally.
+3. In Render > Environment, add PORTAL_AGENT_ACCESS_HASHES and paste the
+   configuration JSON as its value. Save and deploy.
+4. In the SAME PowerShell window run:
+   Set-Clipboard $HSIPortalPermanentLink
+5. Paste into your browser and save the COMPLETE copied link as a bookmark.
+   The page removes the code from the visible address bar after opening.
+   Use Copy portal link on the page to restore the complete link for sharing
+   or bookmarking. Keep a copy before closing the PowerShell window.
+
+The link works on other computers without PowerShell, without an API key and
+without your signing secret. It does not expire. Anyone holding it can access
+Shane's buyer-side history and the linked Spectora client portals.
+
+To revoke it, remove Shane's 3739255 entry from PORTAL_AGENT_ACCESS_HASHES
+(or set the value to {} if Shane is the only agent), then save and deploy.
+To replace it, generate a fresh code and replace only Shane's hash.
+To add other agents later, merge their hash entries rather than overwriting
+existing agents. This generator defaults to Shane and the current portal URL.
+
+Never upload generated access codes, links, API keys or signing secrets to GitHub.
+The provided update files contain no live secrets or inspection records.

@@ -58,3 +58,12 @@ test('a tab cannot extend or copy an expired access grant',async()=>{
  assert.equal(state.clipboard,null);
  assert.ok(state.nodes.some(n=>n.textContent?.includes('has expired')));
 });
+
+test('permanent access link copies into a new browser without needing an expiry timestamp',async()=>{
+ const grant='p1.'+Buffer.alloc(32,9).toString('base64url');
+ const first=await browser(grant);await first.button.events.click();
+ const copied=new URLSearchParams(new URL(first.clipboard).hash.slice(1)).get('grant');
+ const second=await browser(copied);
+ assert.equal(second.authorization,'Bearer '+grant);
+ assert.ok(first.nodes.some(n=>n.textContent?.includes('Permanent private link copied')));
+});
