@@ -95,7 +95,7 @@ test('live lookup uses the exact connection route and documented filters', async
   assert.deepEqual(upstream.paths, [
     '/v2/connections/17',
     '/v2/connection_stats?filter[id]=17&page[size]=1',
-    '/v2/inspections?filter[connection_id]=17&include=buying_agent%2Cselling_agent%2Ccompany&sort=-datetime&page[size]=50'
+    '/v2/inspections?filter[connection_id]=17&include=buying_agent%2Cselling_agent%2Ccompany&sort=-datetime&page[size]=200'
   ]);
   assert.equal(Object.hasOwn(JSON.parse(response.body).agent, 'connectionId'), false);
 });
@@ -155,7 +155,7 @@ for (const [name, record] of [
   });
 }
 
-test('live lookup rejects a same-company inspection linked only to another connection', async () => {
+test('live lookup omits a same-company inspection linked only to another connection', async () => {
   const inspections = { data: [{
     id: '81',
     attributes: { property_city: 'Example', property_state: 'OR' },
@@ -166,7 +166,8 @@ test('live lookup rejects a same-company inspection linked only to another conne
     }
   }] };
   const response = await invoke(liveHandler(validUpstream({ inspections })), '/api/agent/17', bearer());
-  assert.equal(response.status, 403, response.body);
+  assert.equal(response.status, 200, response.body);
+  assert.deepEqual(JSON.parse(response.body).inspections, []);
 });
 
 test('exact connection GET upstream 404 maps to portal 404', async () => {
@@ -195,7 +196,7 @@ for (const failedRoute of ['connection_stats', 'inspections']) {
   });
 }
 
-test('live lookup accepts official-shaped buyer and seller relationship matches', async () => {
+test('live lookup shows buyer inspections and excludes listing-only inspections', async () => {
   const inspections = { data: [
     {
       id: '81', attributes: { property_city: 'Buyer City' }, relationships: {
@@ -213,7 +214,7 @@ test('live lookup accepts official-shaped buyer and seller relationship matches'
   ] };
   const response = await invoke(liveHandler(validUpstream({ inspections })), '/api/agent/17', bearer());
   assert.equal(response.status, 200, response.body);
-  assert.deepEqual(JSON.parse(response.body).inspections.map(item => item.location), ['Buyer City', 'Seller City']);
+  assert.deepEqual(JSON.parse(response.body).inspections.map(item => item.location), ['Buyer City']);
 });
 
 test('connection and stats require company_id in attributes even when a relationship supplies it', async () => {
@@ -268,20 +269,6 @@ for (const [name, overrides] of [
       buying_agent: { data: { id: '17', type: 'connection' } }, selling_agent: { data: null }
     }
   }] } }],
-  ['one inspection in a mixed list crosses connection scope', { inspections: { data: [
-    {
-      id: '81', attributes: {}, relationships: {
-        company: { data: { id: '42', type: 'company' } },
-        buying_agent: { data: { id: '17', type: 'connection' } }, selling_agent: { data: null }
-      }
-    },
-    {
-      id: '82', attributes: {}, relationships: {
-        company: { data: { id: '42', type: 'company' } },
-        buying_agent: { data: null }, selling_agent: { data: { id: '18', type: 'connection' } }
-      }
-    }
-  ] } }],
   ['one inspection in a mixed list crosses company scope', { inspections: { data: [
     {
       id: '81', attributes: {}, relationships: {
@@ -431,4 +418,24 @@ test('release automation pins external inputs and exercises the container', () =
   assert.match(ci, /api\/health/);
   const dockerfile = fs.readFileSync(path.join(__dirname, '..', 'Dockerfile'), 'utf8');
   assert.match(dockerfile, /^FROM node:20-alpine@sha256:[0-9a-f]{64}/m);
+});
+
+test('mixed history shows authorized records and omits historical nonmatching agent records', async () => {
+  const overrides = { inspections: { data: [
+    {
+      id: '81', attributes: {}, relationships: {
+        company: { data: { id: '42', type: 'company' } },
+        buying_agent: { data: { id: '17', type: 'connection' } }, selling_agent: { data: null }
+      }
+    },
+    {
+      id: '82', attributes: {}, relationships: {
+        company: { data: { id: '42', type: 'company' } },
+        buying_agent: { data: null }, selling_agent: { data: { id: '18', type: 'connection' } }
+      }
+    }
+  ] } };
+  const response = await invoke(liveHandler(validUpstream(overrides)), '/api/agent/17', bearer());
+  assert.equal(response.status, 200, response.body);
+  assert.equal(JSON.parse(response.body).inspections.length, 1);
 });

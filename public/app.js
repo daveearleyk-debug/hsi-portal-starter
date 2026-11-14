@@ -83,6 +83,7 @@ function renderDashboard(data) {
     src: agent.photoUrl || '/assets/mock-agent.svg',
     alt: `${agent.firstName} ${agent.lastName}`
   });
+  avatar.addEventListener('error', () => { avatar.src = '/assets/mock-agent.svg'; }, { once: true });
   app.append(
     el('section', { class: 'hero' }, [
       avatar,
@@ -148,6 +149,7 @@ function renderDashboard(data) {
   );
 
   const timeline = el('div', { class: 'timeline' });
+  if (!inspections.length) timeline.append(el('p', { class: 'privacy-note', text: 'No buyer inspections to display.' }));
   for (const inspection of inspections) {
     const date = monthDay(inspection.date);
     timeline.append(
@@ -161,7 +163,11 @@ function renderDashboard(data) {
           el('p', {
             class: 'inspection-meta',
             text: `${inspection.services} | ${inspection.inspector} | ${inspection.status}`
-          })
+          }),
+          ...(inspection.portalUrl ? [el('a', {
+            href: inspection.portalUrl, target: '_blank', rel: 'noopener noreferrer',
+            text: 'Open inspection portal (opens in a new tab)'
+          })] : [])
         ])
       ])
     );
@@ -169,7 +175,7 @@ function renderDashboard(data) {
 
   app.append(
     el('section', { class: 'section' }, [
-      el('h2', { text: 'Inspection History' }),
+      el('h2', { text: data.meta?.mode === 'live' ? 'Buyer Inspection History' : 'Inspection History' }),
       timeline
     ])
   );

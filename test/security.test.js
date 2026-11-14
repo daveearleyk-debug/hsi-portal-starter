@@ -98,7 +98,7 @@ test('live API requires connection grant, enforces company scope, and returns a 
   assert.deepEqual(body.meta, { mode: 'live' });
   assert.equal(body.company.name, 'Configured Inspectors');
   const serialized = JSON.stringify(body);
-  for (const forbidden of ['private@example.test', '555-0100', 'Private Client', '700', 'private-report', '123 Private Street', 'tracker.invalid']) {
+  for (const forbidden of ['private@example.test', '555-0100', 'Private Client', '700', '123 Private Street', 'tracker.invalid']) {
     assert.equal(serialized.includes(forbidden), false, forbidden);
   }
   assert.equal(Object.hasOwn(body.agent, 'connectionId'), false);
@@ -106,7 +106,7 @@ test('live API requires connection grant, enforces company scope, and returns a 
   assert.deepEqual(upstreamPaths, [
     '/v2/connections/17',
     '/v2/connection_stats?filter[id]=17&page[size]=1',
-    '/v2/inspections?filter[connection_id]=17&include=buying_agent%2Cselling_agent%2Ccompany&sort=-datetime&page[size]=50'
+    '/v2/inspections?filter[connection_id]=17&include=buying_agent%2Cselling_agent%2Ccompany&sort=-datetime&page[size]=200'
   ]);
 });
 

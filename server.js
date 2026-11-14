@@ -24,7 +24,7 @@ const MIME_TYPES = {
 };
 
 const SECURITY_HEADERS = Object.freeze({
-  'Content-Security-Policy': "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'self'; img-src 'self' https://cdn.spectora.com; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
@@ -134,6 +134,15 @@ function createConfig(env = process.env) {
       label: env.DEMO_TIER_LABEL
     }
   };
+}
+
+function profilePhoto(value, fallback) {
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'https:' && url.hostname === 'cdn.spectora.com' && !url.username && !url.password && !url.port &&
+        /^\/(?:users|connections)\/images\//.test(url.pathname)) return url.href;
+  } catch {}
+  return fallback;
 }
 
 function boundedInteger(value, fallback, min, max) {
@@ -273,8 +282,8 @@ function scopedInspections(records, companyId, connectionId) {
     const buyingAgentId = relationshipId(record, 'buying_agent', 'connection', true);
     const sellingAgentId = relationshipId(record, 'selling_agent', 'connection', true);
     // Upstream agent filters can return historical matches. Only expose a
-    // record when its current relationship explicitly matches this grant.
-    return buyingAgentId === connectionId || sellingAgentId === connectionId;
+    // record when its current buying-agent relationship matches this grant.
+    return buyingAgentId === connectionId;
   });
 }
 
@@ -286,7 +295,9 @@ function mapInspection(insp) {
     services: [attrs.service_names, attrs.service_add_on_names].filter(Boolean).join(' + '),
     inspector: attrs.inspector_name || '',
     status: attrs.canceled_at ? 'Canceled' : (attrs.published_at ? 'Report Published' : 'Scheduled'),
-    published: Boolean(attrs.published_at)
+    published: Boolean(attrs.published_at),
+    ...(!attrs.canceled_at && typeof attrs.slug === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(attrs.slug)
+      ? { portalUrl: `https://portal.spectora.com/inspection/${encodeURIComponent(attrs.slug)}` } : {})
   };
 }
 
@@ -428,7 +439,7 @@ function createPortal(options = {}) {
     assertRecordId(stats.data[0], connectionId, 'stats');
     assertCompanyScope(stats.data, scope);
     const inspections = await upstreamGet(query('/v2/inspections', {
-      'filter[connection_id]': connectionId, include: 'buying_agent,selling_agent,company', sort: '-datetime', 'page[size]': '50'
+      'filter[connection_id]': connectionId, include: 'buying_agent,selling_agent,company', sort: '-datetime', 'page[size]': '200'
     }));
     if (!Array.isArray(inspections.data)) throw authError('Upstream inspections data missing', 403);
     const authorizedInspections = scopedInspections(inspections.data, scope, connectionId);
@@ -443,7 +454,7 @@ function createPortal(options = {}) {
         agency: attrs.agency_name || '',
         city: attrs.city || '',
         state: attrs.state || '',
-        photoUrl: sample.agent.photoUrl
+        photoUrl: profilePhoto(attrs.image || attrs.thumb, sample.agent.photoUrl)
       },
       stats: {
         totalInspections: Number(statAttrs.total_inspections_count || attrs.total_inspections_count || 0),
