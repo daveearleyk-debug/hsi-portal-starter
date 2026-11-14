@@ -326,3 +326,20 @@ button:focus-visible,
     box-shadow: 0 24px 80px rgba(35, 35, 35, 0.12);
   }
 }
+
+.portal-link-copy {
+  width: 100%;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+
+.portal-link-fallback {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+}

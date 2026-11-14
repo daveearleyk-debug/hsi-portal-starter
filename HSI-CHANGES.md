@@ -18,9 +18,15 @@ profile images and excluding inspection links.
   remain active. Grant links still expire within 24 hours.
 - No live credentials, agent photos or inspection records are packaged here.
 
-Verification: syntax checks and 82 automated tests passed locally. Live API
+Verification: syntax checks and 85 automated tests passed locally. Live API
 response structures were also exercised locally; hosted browser photo display
 and navigation must be checked after deployment.
 
 History uses the API street address as its title. App scripts revalidate on each
 visit; script URLs are versioned to replace previously cached browser copies.
+
+Copy portal link restores the original authorized grant in a shareable URL,
+so a second computer can open the same portal without generating a new link.
+The grant is not extended: its original expiry and agent binding still apply.
+If clipboard permission is unavailable, a selected read-only field permits
+manual copying. The base website address remains an unauthenticated entry.

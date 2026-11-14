@@ -62,6 +62,53 @@ function applyBrand(company) {
   if (theme) theme.setAttribute('content', company.brand.primary);
 }
 
+function renderPortalAccess() {
+  const status = el('p', {
+    class: 'privacy-note', 'aria-live': 'polite',
+    text: 'Use this private link on another computer or device. Its original expiry still applies.'
+  });
+  const fallback = el('input', {
+    class: 'portal-link-fallback', type: 'text', readonly: true, hidden: true,
+    'aria-label': 'Private portal access link'
+  });
+  const button = el('button', {
+    class: 'action portal-link-copy', type: 'button', text: 'Copy portal link'
+  });
+  button.addEventListener('click', async () => {
+    let link;
+    try {
+      const raw = portalGrant.split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
+      const claims = JSON.parse(atob(raw.padEnd(Math.ceil(raw.length / 4) * 4, '=')));
+      if (claims.connectionId !== getUuid() || !Number.isSafeInteger(claims.exp) || claims.exp <= Math.floor(Date.now() / 1000)) {
+        throw new Error('Expired or mismatched link');
+      }
+      const url = new URL(`/agent/${encodeURIComponent(getUuid())}`, location.origin);
+      url.hash = new URLSearchParams({ grant: portalGrant }).toString();
+      link = url.href;
+    } catch {
+      fallback.hidden = true;
+      fallback.value = '';
+      status.textContent = 'This access link has expired. Ask Home Safe Inspection Services for a fresh link.';
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(link);
+      fallback.hidden = true;
+      fallback.value = '';
+      status.textContent = 'Private link copied. Paste it on another device. It keeps its original expiry.';
+    } catch {
+      fallback.value = link;
+      fallback.hidden = false;
+      fallback.focus();
+      fallback.select();
+      status.textContent = 'Copy the selected private link and open it on the other device.';
+    }
+  });
+  app.append(el('section', { class: 'section' }, [
+    el('h2', { text: 'Open on another device' }), button, status, fallback
+  ]));
+}
+
 function renderDashboard(data) {
   const { company, agent, stats, tier, inspections } = data;
   applyBrand(company);
@@ -179,6 +226,8 @@ function renderDashboard(data) {
       timeline
     ])
   );
+
+  if (data.meta?.mode === 'live' && portalGrant) renderPortalAccess();
 
   app.append(
     el('footer', { class: 'footer' }, [
