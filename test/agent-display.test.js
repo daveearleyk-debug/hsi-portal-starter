@@ -41,3 +41,10 @@ test('missing, malformed and externally supplied slugs never create a link',asyn
   assert.equal(Object.hasOwn(result.inspections[0],'portalUrl'),false);
  }
 });
+
+test('buyer history uses the API street address without including client details',async()=>{
+ const result=await app({rows:[row('1','17',null,{property_address:'123 Example Street',buyer_name:'Synthetic Client',quote:'999',slug:'example-report'})]}).getAgentPayload('17');
+ assert.equal(result.inspections[0].location,'123 Example Street');
+ assert.equal(JSON.stringify(result).includes('Synthetic Client'),false);
+ assert.equal(JSON.stringify(result).includes('999'),false);
+});

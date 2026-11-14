@@ -130,7 +130,7 @@ test('frontend consumes fragment grant and remains an ordinary non-PWA web app',
 test('customer notice copy is truthful for demo, live, and unknown modes', () => {
   const { modeNotice } = require('../public/mode-copy');
   assert.equal(modeNotice('demo'), 'Demonstration only: these are fictional records with non-specific locations.');
-  assert.equal(modeNotice('live'), 'Live data: inspection history is limited to this authorized connection and company; locations are city/state only.');
+  assert.equal(modeNotice('live'), 'Live data: buyer-side inspection history for this agent and company. Links open the Spectora client portal.');
   assert.equal(modeNotice('unexpected'), 'Data mode unavailable. Do not rely on this inspection history.');
 });
 

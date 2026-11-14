@@ -291,7 +291,7 @@ function mapInspection(insp) {
   const attrs = insp.attributes || {};
   return {
     date: attrs.datetime ? new Date(attrs.datetime).toISOString().slice(0, 10) : '',
-    location: [attrs.property_city, attrs.property_state].filter(Boolean).join(', ') || 'Location withheld',
+    location: attrs.property_address || [attrs.property_city, attrs.property_state].filter(Boolean).join(', ') || 'Address unavailable',
     services: [attrs.service_names, attrs.service_add_on_names].filter(Boolean).join(' + '),
     inspector: attrs.inspector_name || '',
     status: attrs.canceled_at ? 'Canceled' : (attrs.published_at ? 'Report Published' : 'Scheduled'),
@@ -397,7 +397,7 @@ function loadStaticSnapshot(publicDir) {
         files.set(key, Object.freeze({
           body: fs.readFileSync(descriptor),
           contentType: MIME_TYPES[ext] || 'application/octet-stream',
-          cacheControl: ext === '.html' ? 'no-cache' : 'public, max-age=86400'
+          cacheControl: ['.html', '.js'].includes(ext) ? 'no-cache' : 'public, max-age=86400'
         }));
       } finally {
         fs.closeSync(descriptor);

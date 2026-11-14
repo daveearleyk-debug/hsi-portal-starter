@@ -18,6 +18,9 @@ profile images and excluding inspection links.
   remain active. Grant links still expire within 24 hours.
 - No live credentials, agent photos or inspection records are packaged here.
 
-Verification: syntax checks and 81 automated tests passed locally. Live API
+Verification: syntax checks and 82 automated tests passed locally. Live API
 response structures were also exercised locally; hosted browser photo display
 and navigation must be checked after deployment.
+
+History uses the API street address as its title. App scripts revalidate on each
+visit; script URLs are versioned to replace previously cached browser copies.
