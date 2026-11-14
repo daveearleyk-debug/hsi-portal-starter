@@ -264,18 +264,18 @@ function relationshipId(record, name, expectedType, allowNull = false) {
   return id;
 }
 
-function assertInspectionScope(records, companyId, connectionId) {
-  for (const record of records) {
+function scopedInspections(records, companyId, connectionId) {
+  return records.filter(record => {
     if (Object.hasOwn(record?.attributes || {}, 'company_id') && !matchesCompanyId(record.attributes.company_id, companyId)) {
       throw authError('Upstream inspection company attribute mismatch', 403);
     }
     if (relationshipId(record, 'company', 'company') !== companyId) throw authError('Upstream inspection company scope mismatch', 403);
     const buyingAgentId = relationshipId(record, 'buying_agent', 'connection', true);
     const sellingAgentId = relationshipId(record, 'selling_agent', 'connection', true);
-    if (buyingAgentId !== connectionId && sellingAgentId !== connectionId) {
-      throw authError('Upstream inspection connection scope mismatch', 403);
-    }
-  }
+    // Upstream agent filters can return historical matches. Only expose a
+    // record when its current relationship explicitly matches this grant.
+    return buyingAgentId === connectionId || sellingAgentId === connectionId;
+  });
 }
 
 function mapInspection(insp) {
@@ -431,7 +431,7 @@ function createPortal(options = {}) {
       'filter[connection_id]': connectionId, include: 'buying_agent,selling_agent,company', sort: '-datetime', 'page[size]': '50'
     }));
     if (!Array.isArray(inspections.data)) throw authError('Upstream inspections data missing', 403);
-    assertInspectionScope(inspections.data, scope, connectionId);
+    const authorizedInspections = scopedInspections(inspections.data, scope, connectionId);
     const attrs = connection.attributes || {};
     const statAttrs = stats.data?.[0]?.attributes || {};
     return {
@@ -454,7 +454,7 @@ function createPortal(options = {}) {
         overallCount: Number(statAttrs.overall_inspections_count || 0)
       },
       tier: sample.tier,
-      inspections: (inspections.data || []).map(mapInspection)
+      inspections: authorizedInspections.map(mapInspection)
     };
   }
 
