@@ -116,6 +116,100 @@ function renderPortalAccess() {
   ]));
 }
 
+function filterInspectionHistory(inspections, { query = '', type = 'all', year = 'all' } = {}) {
+  const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  return inspections.filter(inspection => {
+    const isPreSale = inspection.classification === 'Pre-sale inspection';
+    if (type === 'pre-sale' && !isPreSale) return false;
+    if (type === 'buyer' && isPreSale) return false;
+    if (year !== 'all' && String(inspection.date || '').slice(0, 4) !== year) return false;
+    const content = [inspection.location, inspection.address, inspection.services,
+      inspection.classification, inspection.status, inspection.date, inspection.inspector]
+      .filter(Boolean).join(' ').toLocaleLowerCase();
+    return words.every(word => content.includes(word));
+  });
+}
+
+function renderInspectionHistory(inspections) {
+  const timeline = el('div', { class: 'timeline' });
+  const search = el('input', {
+    id: 'inspection-search', class: 'history-input', type: 'search',
+    placeholder: 'Search address or service', autocomplete: 'off'
+  });
+  const type = el('select', { id: 'inspection-type', class: 'history-input' }, [
+    el('option', { value: 'all', text: 'All types' }),
+    el('option', { value: 'buyer', text: 'Buyer' }),
+    el('option', { value: 'pre-sale', text: 'Pre-sale' })
+  ]);
+  const years = [...new Set(inspections.map(item => String(item.date || '').slice(0, 4))
+    .filter(value => /^\d{4}$/.test(value)))].sort().reverse();
+  const year = el('select', { id: 'inspection-year', class: 'history-input' }, [
+    el('option', { value: 'all', text: 'All years' }),
+    ...years.map(value => el('option', { value, text: value }))
+  ]);
+  search.value = '';
+  type.value = 'all';
+  year.value = 'all';
+  const count = el('p', { class: 'history-count', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' });
+  const clear = el('button', { class: 'history-clear', type: 'button', text: 'Clear filters' });
+
+  function updateHistory() {
+    const filtered = filterInspectionHistory(inspections, { query: search.value, type: type.value, year: year.value });
+    count.textContent = `Showing ${filtered.length} of ${inspections.length} inspections`;
+    timeline.replaceChildren();
+    if (!filtered.length) timeline.append(el('p', {
+      class: 'privacy-note',
+      text: inspections.length ? 'No inspections match your filters.' : 'No inspections to display.'
+    }));
+    for (const inspection of filtered) {
+      const date = monthDay(inspection.date);
+      timeline.append(
+        el('article', { class: 'timeline-item' }, [
+          el('div', { class: 'date' }, [
+            document.createTextNode(date.month),
+            el('span', { text: date.day })
+          ]),
+          el('div', {}, [
+            el('p', { class: 'inspection-title', text: inspection.location || inspection.address }),
+            ...(inspection.classification ? [el('p', { class: 'inspection-kind', text: inspection.classification })] : []),
+            el('p', {
+              class: 'inspection-meta',
+              text: `${inspection.services} | ${inspection.inspector} | ${inspection.status}`
+            }),
+            ...(inspection.portalUrl ? [el('a', {
+              href: inspection.portalUrl, target: '_blank', rel: 'noopener noreferrer',
+              text: 'Open inspection portal (opens in a new tab)'
+            })] : [])
+          ])
+        ])
+      );
+    }
+  }
+  search.addEventListener('input', updateHistory);
+  type.addEventListener('change', updateHistory);
+  year.addEventListener('change', updateHistory);
+  clear.addEventListener('click', () => {
+    search.value = '';
+    type.value = 'all';
+    year.value = 'all';
+    updateHistory();
+    search.focus();
+  });
+  updateHistory();
+  return el('section', { class: 'section' }, [
+    el('h2', { text: 'Inspection History' }),
+    el('div', { class: 'inspection-filters' }, [
+      el('label', { class: 'history-search-field', for: 'inspection-search' }, [
+        el('span', { text: 'Search inspections' }), search
+      ]),
+      el('label', { for: 'inspection-type' }, [el('span', { text: 'Type' }), type]),
+      el('label', { for: 'inspection-year' }, [el('span', { text: 'Year' }), year]),
+      el('div', { class: 'history-filter-footer' }, [count, clear])
+    ]),
+    timeline
+  ]);
+}
+
 function renderDashboard(data) {
   const { company, agent, stats, tier, inspections } = data;
   applyBrand(company);
@@ -204,38 +298,7 @@ function renderDashboard(data) {
     ])
   );
 
-  const timeline = el('div', { class: 'timeline' });
-  if (!inspections.length) timeline.append(el('p', { class: 'privacy-note', text: 'No inspections to display.' }));
-  for (const inspection of inspections) {
-    const date = monthDay(inspection.date);
-    timeline.append(
-      el('article', { class: 'timeline-item' }, [
-        el('div', { class: 'date' }, [
-          document.createTextNode(date.month),
-          el('span', { text: date.day })
-        ]),
-        el('div', {}, [
-          el('p', { class: 'inspection-title', text: inspection.location || inspection.address }),
-          ...(inspection.classification ? [el('p', { class: 'inspection-kind', text: inspection.classification })] : []),
-          el('p', {
-            class: 'inspection-meta',
-            text: `${inspection.services} | ${inspection.inspector} | ${inspection.status}`
-          }),
-          ...(inspection.portalUrl ? [el('a', {
-            href: inspection.portalUrl, target: '_blank', rel: 'noopener noreferrer',
-            text: 'Open inspection portal (opens in a new tab)'
-          })] : [])
-        ])
-      ])
-    );
-  }
-
-  app.append(
-    el('section', { class: 'section' }, [
-      el('h2', { text: 'Inspection History' }),
-      timeline
-    ])
-  );
+  app.append(renderInspectionHistory(inspections));
 
   if (data.meta?.mode === 'live' && portalGrant) renderPortalAccess();
 

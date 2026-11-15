@@ -18,7 +18,7 @@ profile images and excluding inspection links.
   remain active. Original temporary grants still expire within 24 hours.
 - No live credentials, agent photos or inspection records are packaged here.
 
-Verification: syntax checks and 98 automated tests passed locally. Live API
+Verification: syntax checks and 102 automated tests passed locally. Live API
 response structures were also exercised locally; hosted browser photo display
 and navigation must be checked after deployment.
 
@@ -52,3 +52,9 @@ classification rule as the displayed history. Existing Spectora Total,
 Buying and Selling values remain aggregate provider statistics; Pre-sales
 are part of Selling and are not added again to Total. Four metrics use a
 readable two-by-two grid.
+
+Inspection History includes an address/service search, Buyer/Pre-sale type
+selector, year selector, matching-results count and Clear filters button.
+Filters combine and operate only on the agent-authorized history already
+loaded. Relationship snapshot values are not affected by filters. No extra
+Spectora calls are made when typing or changing filters.
