@@ -98,3 +98,11 @@ blend with the supplied image backgrounds. App and stylesheet versions are
 updated so browsers fetch the new branding. Existing agent avatars remain
 unchanged. Validation: syntax checks, 111 automated tests, and local HTTP
 checks for exact original image bytes and correct content types passed.
+
+Header/date refinements: remove the tagline paragraph beneath the official
+header logo; give the upper-right Agent Portal badge a pale green background,
+logo-green #8ec63f border and dark green text; add a year below the day in each
+inspection date icon. Date icons use semantic time elements with complete
+accessible dates. App/stylesheet asset versions are bumped for refreshed
+browser caches. No environment or backend changes are required.
+Validation: syntax checks and 111 tests pass, including multi-year date icons.

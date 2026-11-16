@@ -24,7 +24,8 @@ function monthDay(value) {
   const date = new Date(`${value}T00:00:00`);
   return {
     month: new Intl.DateTimeFormat('en-US', { month: 'short' }).format(date),
-    day: new Intl.DateTimeFormat('en-US', { day: '2-digit' }).format(date)
+    day: new Intl.DateTimeFormat('en-US', { day: '2-digit' }).format(date),
+    year: new Intl.DateTimeFormat('en-US', { year: 'numeric' }).format(date)
   };
 }
 
@@ -165,9 +166,10 @@ function renderInspectionHistory(inspections) {
       const date = monthDay(inspection.date);
       timeline.append(
         el('article', { class: 'timeline-item' }, [
-          el('div', { class: 'date' }, [
+          el('time', { class: 'date', datetime: inspection.date, 'aria-label': `${date.month} ${date.day}, ${date.year}` }, [
             document.createTextNode(date.month),
-            el('span', { text: date.day })
+            el('span', { text: date.day }),
+            el('span', { class: 'date-year', text: date.year })
           ]),
           el('div', {}, [
             el('p', { class: 'inspection-title', text: inspection.location || inspection.address }),
@@ -254,8 +256,7 @@ function renderDashboard(data) {
   app.append(
     el('header', { class: 'topbar' }, [
       el('div', { class: 'brand-lockup' }, [
-        el('img', { class: 'brand-logo', src: '/assets/hsi-letterhead.jpg', alt: company.name, width: '1200', height: '475' }),
-        el('p', { class: 'company-tagline', text: company.tagline })
+        el('img', { class: 'brand-logo', src: '/assets/hsi-letterhead.jpg', alt: company.name, width: '1200', height: '475' })
       ]),
       el('div', { class: 'badge', text: company.appName })
     ])

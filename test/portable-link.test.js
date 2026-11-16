@@ -97,6 +97,10 @@ function cardText(node) {return [node.textContent||'',...(node.children||[]).map
 test('history searches addresses and services with case-insensitive multiword matching',async()=>{
  const state=await browser(token(),false,filterRows);const c=historyControls(state);
  assert.equal(visibleCards(c).length,3);
+ assert.equal(visibleCards(c)[0].children[0].tag,'time');
+ assert.equal(visibleCards(c)[0].children[0].children[2].textContent,'2026');
+ assert.equal(visibleCards(c)[1].children[0].children[2].textContent,'2025');
+ assert.equal(visibleCards(c)[0].children[0].datetime,'2026-10-16');
  c.search.value='  wOoLgAr   212 ';c.search.events.input();
  assert.equal(visibleCards(c).length,1);assert.match(cardText(visibleCards(c)[0]),/212 Woolgar Ave/);
  assert.equal(c.count.textContent,'Showing 1 of 3 inspections');

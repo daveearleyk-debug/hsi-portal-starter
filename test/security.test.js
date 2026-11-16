@@ -244,7 +244,7 @@ test('upstream JSON reader rejects responses over the byte limit', async () => {
   await assert.rejects(result, /size limit/);
 });
 
-test('white-label tagline reaches visible UI while configuration has no short-name surface', async () => {
+test('branding configuration is retained while header omits tagline text', async () => {
   const defaults = await portal.createPortal({ env: {}, log: () => {} }).getAgentPayload('anything');
   assert.equal(defaults.company.name, 'Example Home Inspections');
   assert.equal(defaults.company.appName, 'Agent Portal');
@@ -276,5 +276,5 @@ test('white-label tagline reaches visible UI while configuration has no short-na
   assert.equal(body.tier.label, 'Preferred Partner');
   const appSource = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'app.js'), 'utf8');
   assert.match(appSource, /company\.brand\.primary/);
-  assert.match(appSource, /el\('p', \{ class: 'company-tagline', text: company\.tagline \}\)/);
+  assert.doesNotMatch(appSource, /text: company\.tagline/);
 });
