@@ -172,5 +172,5 @@ test('weekly calendar shows seven dates and noninteractive future slots without 
  assert.equal(state.nodes.filter(n=>n.tag==='article'&&n.className.startsWith('availability-day')).length,7);
  const slot=state.nodes.find(n=>n.className==='availability-slot');
  assert.equal(slot.tag,'span');assert.equal(slot.href,undefined);assert.equal(slot.target,undefined);
- assert.ok(state.nodes.some(n=>n.textContent?.includes('150 minutes of availability')));
+ assert.ok(state.nodes.some(n=>n.textContent==='Time slots displayed are available inspection start times for the next 7 days'));
 });
