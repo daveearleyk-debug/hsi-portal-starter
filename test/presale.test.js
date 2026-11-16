@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {createPortal}=require('../server');
-const env={PORTAL_MODE:'live',SPECTORA_API_KEY:'synthetic-placeholder',SPECTORA_COMPANY_ID:'42',PORTAL_SIGNING_SECRET:'synthetic-signing-secret-at-least-32-bytes'};
+const env={PORTAL_MODE:'live',PORTAL_RANKINGS_ENABLED:'false',SPECTORA_API_KEY:'synthetic-placeholder',SPECTORA_COMPANY_ID:'42',PORTAL_SIGNING_SECRET:'synthetic-signing-secret-at-least-32-bytes'};
 function row(id,buyer,seller,company='42') {
  return {id,attributes:{datetime:'2026-11-01T12:00:00Z',property_address:'Example '+id},relationships:{company:{data:{id:company,type:'company'}},buying_agent:{data:buyer?{id:buyer,type:'connection'}:null},selling_agent:{data:seller?{id:seller,type:'connection'}:null}}};
 }

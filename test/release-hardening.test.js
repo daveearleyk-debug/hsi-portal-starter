@@ -11,7 +11,7 @@ const test = require('node:test');
 const portal = require('../server');
 const secret = ['synthetic-signing', 'secret-with-at-least-32-bytes'].join('-');
 const liveEnv = {
-  PORTAL_MODE: 'live',
+  PORTAL_MODE: 'live', PORTAL_RANKINGS_ENABLED: 'false',
   SPECTORA_API_KEY: 'synthetic-api-key',
   SPECTORA_COMPANY_ID: '42',
   PORTAL_SIGNING_SECRET: secret

@@ -13,7 +13,7 @@ test('configuration defaults to demo and live mode fails closed', () => {
   );
   assert.throws(
     () => portal.createConfig({
-      PORTAL_MODE: 'live',
+      PORTAL_MODE: 'live', PORTAL_RANKINGS_ENABLED: 'false',
       SPECTORA_API_KEY: 'test-key',
       SPECTORA_COMPANY_ID: '42',
       PORTAL_SIGNING_SECRET: 'short'
@@ -55,7 +55,7 @@ function invoke(handler, pathname, headers = {}) {
 }
 
 const liveEnv = {
-  PORTAL_MODE: 'live',
+  PORTAL_MODE: 'live', PORTAL_RANKINGS_ENABLED: 'false',
   SPECTORA_API_KEY: 'synthetic-test-api-key',
   SPECTORA_COMPANY_ID: '42',
   PORTAL_SIGNING_SECRET: strongSecret,

@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname,'../public/app.js'),'utf8');
 const token = (exp=Math.floor(Date.now()/1000)+3600) => Buffer.from(JSON.stringify({v:1,connectionId:'17',exp})).toString('base64url')+'.synthetic-signature';
-async function browser(grant,denyClipboard=false,inspectionRows=[],extraStats={}) {
+async function browser(grant,denyClipboard=false,inspectionRows=[],extraStats={},rankings=null) {
  const nodes=[];
  function node(tag) {
   const n={tag,children:[],events:{},hidden:false,value:'',style:{setProperty(){}},
@@ -18,7 +18,7 @@ async function browser(grant,denyClipboard=false,inspectionRows=[],extraStats={}
  const app=node('main'),theme=node('meta'),storage=new Map();
  const location={origin:'https://portal.example.test',pathname:'/agent/17',search:'',hash:'#grant='+grant};
  const state={clipboard:null,authorization:null,nodes,app,storage,fetchCalls:0};
- const payload={meta:{mode:'live'},company:{brand:{},appName:'HSI',name:'HSI',tagline:'',phone:'8674474663',bookingUrl:'https://example.test/book',whatsappUrl:'https://wa.me/18674474663',website:'https://example.test',license:'RHI'},agent:{firstName:'Example',lastName:'Agent'},tier:{label:'Partner'},stats:{totalInspections:1,buyingInspections:1,sellingInspections:0,...extraStats},inspections:inspectionRows};
+ const payload={rankings,meta:{mode:'live'},company:{brand:{},appName:'HSI',name:'HSI',tagline:'',phone:'8674474663',bookingUrl:'https://example.test/book',whatsappUrl:'https://wa.me/18674474663',website:'https://example.test',license:'RHI'},agent:{firstName:'Example',lastName:'Agent'},tier:{label:'Partner'},stats:{totalInspections:1,buyingInspections:1,sellingInspections:0,...extraStats},inspections:inspectionRows};
  const context={URL,URLSearchParams,atob,Date,location,
   history:{replaceState(){location.hash=''}},
   sessionStorage:{setItem(k,v){storage.set(k,v)},getItem(k){return storage.get(k)}},
@@ -131,4 +131,22 @@ test('empty history and unmatched search text are handled without rendering HTML
  const state=await browser(token(),false,filterRows);const c=historyControls(state);
  c.search.value='<script>alert(1)</script>';c.search.events.input();
  assert.equal(visibleCards(c).length,0);assert.equal(state.nodes.some(n=>n.tag==='script'),false);
+});
+
+test('hero displays an overall rank and all three category ranks with tie labels',async()=>{
+ const score=(rank,count,tied=false)=>({rank,count,tied});
+ const ranking={available:true,population:28,overall:score(4,104),buyers:score(3,69),sellers:score(7,35),presales:score(16,3,true),updatedAt:'2026-11-15T12:00:00Z'};
+ const state=await browser(token(),false,[],{},ranking);
+ const hero=state.nodes.find(n=>n.className==='hero');
+ const panel=hero.children.find(n=>n.className==='ranking-card');
+ assert.ok(panel);
+ const text=cardText(panel);
+ for(const phrase of ['#4','Among 28 realtors','Buyers','Sellers','Pre-sales','#16','Tied · 3 inspections'])assert.ok(text.includes(phrase),phrase);
+ assert.ok(hero.children.indexOf(panel)>hero.children.findIndex(n=>n.className==='agent-name'));
+});
+test('ranking outage shows an honest message while preserving portal and history controls',async()=>{
+ const state=await browser(token(),false,filterRows,{}, {available:false});
+ assert.ok(state.nodes.some(n=>n.textContent==='Rankings are temporarily unavailable.'));
+ assert.ok(historyControls(state).search);
+ assert.equal(visibleCards(historyControls(state)).length,3);
 });

@@ -210,6 +210,45 @@ function renderInspectionHistory(inspections) {
   ]);
 }
 
+function renderRankings(rankings) {
+  if (!rankings?.available) {
+    return el('section', { class: 'ranking-card ranking-unavailable', 'aria-label': 'Realtor rankings' }, [
+      el('p', { class: 'ranking-eyebrow', text: 'Your HSI ranking' }),
+      el('p', { class: 'ranking-note', text: 'Rankings are temporarily unavailable.' })
+    ]);
+  }
+  const category = (label, score) => el('div', {
+    class: 'ranking-category', role: 'group',
+    'aria-label': `${label}: ${score.tied ? 'tied ' : ''}rank ${score.rank} of ${rankings.population}, ${score.count} inspections`
+  }, [
+    el('strong', { class: 'ranking-category-number', text: `#${score.rank}` }),
+    el('span', { class: 'ranking-category-label', text: label }),
+    el('span', { class: 'ranking-category-detail', text: `${score.tied ? 'Tied · ' : ''}${score.count} inspections` })
+  ]);
+  const date = rankings.updatedAt ? new Date(rankings.updatedAt) : null;
+  const updated = date && Number.isFinite(date.getTime())
+    ? `Updated ${new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date)}`
+    : '';
+  return el('section', { class: 'ranking-card', 'aria-label': 'Your realtor ranking with Home Safe Inspection Services' }, [
+    el('p', { class: 'ranking-eyebrow' }, [
+      el('span', { 'aria-hidden': 'true', text: '★ ' }), document.createTextNode('Your HSI ranking')
+    ]),
+    el('div', { class: 'ranking-overall' }, [
+      el('strong', { class: 'ranking-overall-number', text: `#${rankings.overall.rank}` }),
+      el('div', { class: 'ranking-overall-description' }, [
+        el('span', { class: 'ranking-overall-label', text: rankings.overall.tied ? 'Tied overall' : 'Overall ranking' }),
+        el('span', { text: `Among ${rankings.population} realtors` }),
+        el('span', { class: 'ranking-overall-count', text: `${rankings.overall.count} inspections with HSI` })
+      ])
+    ]),
+    el('div', { class: 'ranking-grid' }, [
+      category('Buyers', rankings.buyers), category('Sellers', rankings.sellers), category('Pre-sales', rankings.presales)
+    ]),
+    el('p', { class: 'ranking-note', text: 'Based on HSI inspection totals. Equal counts share a rank.' }),
+    ...(updated ? [el('p', { class: 'ranking-updated', text: updated })] : [])
+  ]);
+}
+
 function renderDashboard(data) {
   const { company, agent, stats, tier, inspections } = data;
   applyBrand(company);
@@ -237,6 +276,7 @@ function renderDashboard(data) {
       avatar,
       el('h1', { class: 'agent-name', text: `${agent.firstName} ${agent.lastName}` }),
       el('p', { class: 'agency', text: agent.agency || 'Real estate partner' }),
+      ...(data.meta?.mode === 'live' ? [renderRankings(data.rankings)] : []),
       el('div', { class: 'tier' }, [
         el('span', { class: 'tier-dot', 'aria-hidden': 'true' }),
         document.createTextNode(tier.label || 'Partner')

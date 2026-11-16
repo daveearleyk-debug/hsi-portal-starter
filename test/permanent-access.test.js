@@ -5,7 +5,7 @@ const crypto = require('node:crypto');
 const {createConfig,createPortal,verifyPortalAccess,createGrant} = require('../server');
 const credential = byte => 'p1.'+Buffer.alloc(32,byte).toString('base64url');
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
-const base = {PORTAL_MODE:'live',SPECTORA_API_KEY:'synthetic-placeholder',SPECTORA_COMPANY_ID:'42',PORTAL_SIGNING_SECRET:'synthetic-signing-secret-at-least-32-bytes'};
+const base = {PORTAL_MODE:'live',PORTAL_RANKINGS_ENABLED:'false',SPECTORA_API_KEY:'synthetic-placeholder',SPECTORA_COMPANY_ID:'42',PORTAL_SIGNING_SECRET:'synthetic-signing-secret-at-least-32-bytes'};
 const config = entries => createConfig({...base,PORTAL_AGENT_ACCESS_HASHES:JSON.stringify(entries)});
 function invoke(handler,id,grant) {
  return new Promise(resolve=>{

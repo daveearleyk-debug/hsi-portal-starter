@@ -98,6 +98,7 @@ function createConfig(env = process.env) {
     companyId: mode === 'live' ? validatedPositiveDecimalId(env.SPECTORA_COMPANY_ID, 'SPECTORA_COMPANY_ID') : '',
     signingSecret: env.PORTAL_SIGNING_SECRET || '',
     agentAccessHashes: parseAgentAccessHashes(env.PORTAL_AGENT_ACCESS_HASHES),
+    rankingsEnabled: env.PORTAL_RANKINGS_ENABLED !== 'false',
     upstreamTimeoutMs: boundedInteger(env.UPSTREAM_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, 100, 30_000),
     upstreamMaxBytes: boundedInteger(env.UPSTREAM_MAX_BYTES, DEFAULT_MAX_BYTES, 1024, 5_000_000),
     rateLimitMax: boundedInteger(env.RATE_LIMIT_MAX, 60, 1, 1000),
@@ -452,6 +453,93 @@ function loadStaticSnapshot(publicDir) {
   return files;
 }
 
+async function fetchRankingPages(upstreamGet, endpoint, parameters) {
+  async function page(number) {
+    const payload = await upstreamGet(query(endpoint, { ...parameters, 'page[size]': '200', 'page[number]': String(number) }));
+    if (!Array.isArray(payload?.data)) throw new Error('Ranking records unavailable');
+    const pagination = payload.meta?.pagination;
+    if (pagination?.current != null && Number(pagination.current) !== number) throw new Error('Ranking page mismatch');
+    return payload;
+  }
+  const first = await page(1);
+  const pages = [first];
+  const last = Number(first.meta?.pagination?.last || 1);
+  if (!Number.isSafeInteger(last) || last < 1 || last > 50) throw new Error('Ranking pagination limit');
+  if (last > 1) {
+    for (let start = 2; start <= last; start += 3) {
+      const numbers = Array.from({ length: Math.min(3, last - start + 1) }, (_, index) => start + index);
+      pages.push(...await Promise.all(numbers.map(page)));
+    }
+    for (let index = 0; index < pages.length; index++) {
+      const next = pages[index].meta?.pagination?.next;
+      if (index < pages.length - 1 && Number(next) !== index + 2) throw new Error('Incomplete ranking pages');
+      if (index === pages.length - 1 && next != null) throw new Error('Incomplete ranking pages');
+    }
+  } else {
+    let next = first.meta?.pagination?.next;
+    while (next != null) {
+      if (Number(next) !== pages.length + 1 || pages.length >= 50) throw new Error('Ranking pagination mismatch');
+      const current = await page(Number(next));
+      pages.push(current);
+      next = current.meta?.pagination?.next;
+    }
+  }
+  const records = pages.flatMap(payload => payload.data);
+  const expectedCount = first.meta?.pagination?.records;
+  if (expectedCount != null && (!Number.isSafeInteger(Number(expectedCount)) || Number(expectedCount) !== records.length)) {
+    throw new Error('Incomplete ranking collection');
+  }
+  return records;
+}
+
+function buildRankingIndex(agentStats, inspections, companyId) {
+  assertCompanyScope(agentStats, companyId);
+  const agents = new Map();
+  function count(attributes, name) {
+    const raw = attributes[name];
+    const value = Number(raw);
+    if (raw == null || raw === '' || !Number.isSafeInteger(value) || value < 0) throw new Error('Ranking counts unavailable');
+    return value;
+  }
+  for (const record of agentStats) {
+    const id = validatedPositiveDecimalId(record.id, 'Ranking agent ID');
+    if (agents.has(id)) throw new Error('Duplicate ranking agent');
+    agents.set(id, {
+      overall: count(record.attributes, 'total_inspections_count'),
+      buyers: count(record.attributes, 'buying_inspections_count'),
+      sellers: count(record.attributes, 'selling_inspections_count'),
+      presales: 0
+    });
+  }
+  const seen = new Set();
+  for (const record of inspections) {
+    if (Object.hasOwn(record?.attributes || {}, 'company_id') && !matchesCompanyId(record.attributes.company_id, companyId)) throw authError('Ranking company mismatch', 403);
+    if (relationshipId(record, 'company', 'company') !== companyId) throw authError('Ranking company mismatch', 403);
+    const buyer = relationshipId(record, 'buying_agent', 'connection', true);
+    const seller = relationshipId(record, 'selling_agent', 'connection', true);
+    const id = validatedPositiveDecimalId(record.id, 'Ranking inspection ID');
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const attrs = record.attributes || {};
+    if (attrs.canceled_at || attrs.deleted_at || attrs.archived_by_inspector) continue;
+    if (buyer === null && seller !== null && agents.has(seller)) agents.get(seller).presales++;
+  }
+  const results = new Map();
+  for (const [id, scores] of agents) {
+    const result = { available: true, population: agents.size };
+    for (const metric of ['overall', 'buyers', 'sellers', 'presales']) {
+      const values = [...agents.values()].map(agent => agent[metric]);
+      result[metric] = {
+        rank: 1 + values.filter(value => value > scores[metric]).length,
+        tied: values.filter(value => value === scores[metric]).length > 1,
+        count: scores[metric]
+      };
+    }
+    results.set(id, result);
+  }
+  return results;
+}
+
 function createPortal(options = {}) {
   const config = createConfig(options.env || process.env);
   const staticFiles = loadStaticSnapshot(options.publicDir || PUBLIC_DIR);
@@ -460,6 +548,35 @@ function createPortal(options = {}) {
   const upstreamGet = options.upstreamGet || createHttpsUpstream(config);
   const log = options.log || (entry => process.stdout.write(`${JSON.stringify(entry)}\n`));
   const allowRequest = createRateLimiter(config, nowMs);
+  let rankingCache = null;
+  let rankingPending = null;
+  let rankingRetryAt = 0;
+
+  async function getAgentRankings(connectionId) {
+    if (!config.rankingsEnabled) return null;
+    try {
+      if (!rankingCache || rankingCache.expiresAt <= nowMs()) {
+        if (rankingRetryAt > nowMs()) return { available: false };
+        if (!rankingPending) {
+          rankingPending = (async () => {
+            const [allStats, allInspections] = await Promise.all([
+              fetchRankingPages(upstreamGet, '/v2/connection_stats', {}),
+              fetchRankingPages(upstreamGet, '/v2/inspections', { include: 'buying_agent,selling_agent,company', sort: '-datetime' })
+            ]);
+            const rankings = buildRankingIndex(allStats, allInspections, config.companyId);
+            rankingCache = { rankings, updatedAt: new Date(nowMs()).toISOString(), expiresAt: nowMs() + 15 * 60 * 1000 };
+          })().finally(() => { rankingPending = null; });
+        }
+        await rankingPending;
+      }
+      const ranking = rankingCache.rankings.get(connectionId);
+      return ranking ? { ...ranking, updatedAt: rankingCache.updatedAt } : { available: false };
+    } catch {
+      rankingRetryAt = nowMs() + 30 * 1000;
+      return { available: false };
+    }
+  }
+
 
   async function getAgentPayload(connectionId) {
     const sample = applyCustomization(readSampleAgent(), config.branding, config.demoAgent, config.demoTier);
@@ -488,8 +605,10 @@ function createPortal(options = {}) {
     const authorizedInspections = scopedInspections(inspections.data, scope, connectionId);
     const attrs = connection.attributes || {};
     const statAttrs = stats.data?.[0]?.attributes || {};
+    const rankings = await getAgentRankings(connectionId);
     return {
       meta: { mode: 'live' },
+      ...(rankings ? { rankings } : {}),
       company: sample.company,
       agent: {
         firstName: attrs.first_name || '',
@@ -608,6 +727,8 @@ module.exports = {
   createHttpsUpstream,
   readUpstreamJson,
   createPortal,
+  buildRankingIndex,
+  fetchRankingPages,
   createServer,
   handleRequest: defaultPortal.handleRequest,
   readSampleAgent,

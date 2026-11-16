@@ -18,7 +18,7 @@ profile images and excluding inspection links.
   remain active. Original temporary grants still expire within 24 hours.
 - No live credentials, agent photos or inspection records are packaged here.
 
-Verification: syntax checks and 102 automated tests passed locally. Live API
+Verification: syntax checks and 111 automated tests passed locally. Live API
 response structures were also exercised locally; hosted browser photo display
 and navigation must be checked after deployment.
 
@@ -58,3 +58,26 @@ selector, year selector, matching-results count and Clear filters button.
 Filters combine and operate only on the agent-authorized history already
 loaded. Relationship snapshot values are not affected by filters. No extra
 Spectora calls are made when typing or changing filters.
+
+Realtor ranking card: a gold panel beneath the agent name/agency shows Overall,
+Buyers, Sellers and Pre-sales ranks against the HSI connection-stats roster.
+Overall, buyer and seller scores use Spectora total_inspections_count,
+buying_inspections_count and selling_inspections_count. Pre-sale scores count
+company inspections with an explicitly null buyer and a matching seller.
+Pre-sales remain part of selling and are not added a second time to overall.
+Competition ranking is used: equal scores share a rank (1, 1, 3).
+
+Ranking collections paginate through the full company stats and inspection
+results, up to 50 pages of 200 records each. Every record remains company
+validated; only the authorized agent's ranking and the roster size are sent
+to that agent's browser. Other agents' names, contact details, inspection
+links and counts are not returned. Ranking data stays in memory for 15 minutes;
+concurrent requests share a refresh. The card displays its update time. A
+ranking error displays an unavailable message while keeping the portal usable.
+No extra environment variables are required; PORTAL_RANKINGS_ENABLED=false is
+an optional operator opt-out. Existing private agent links still work.
+
+Verification: syntax checks and 111 automated tests pass locally. Ranking
+logic was also exercised with minimized live MCP response structures for
+28 agents and 1,186 inspection records. Hosted API-key calls and rendered
+browser appearance require confirmation after deployment.

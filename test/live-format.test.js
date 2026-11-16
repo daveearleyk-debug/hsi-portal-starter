@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {createPortal} = require('../server');
-const env = {PORTAL_MODE:'live',SPECTORA_API_KEY:'synthetic-placeholder',SPECTORA_COMPANY_ID:'42',PORTAL_SIGNING_SECRET:'synthetic-test-secret-at-least-32-bytes'};
+const env = {PORTAL_MODE:'live',PORTAL_RANKINGS_ENABLED:'false',SPECTORA_API_KEY:'synthetic-placeholder',SPECTORA_COMPANY_ID:'42',PORTAL_SIGNING_SECRET:'synthetic-test-secret-at-least-32-bytes'};
 function app(companyId) {
  return createPortal({env,log:()=>{},upstreamGet:async path=>{
   if(path.startsWith('/v2/connections/')) return {data:{id:'17',attributes:{company_id:companyId,first_name:'Example'}}};
