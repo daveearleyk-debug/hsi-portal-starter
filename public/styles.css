@@ -434,3 +434,6 @@ button.action:disabled { cursor: wait; opacity: .7; }
 .contact-card-action:has(.contact-card-download:not([hidden])) button.action { height: auto; }
 .contact-card-download { display: inline-block; margin-top: 7px; font-size: 12px; }
 .contact-card-download[hidden], .contact-card-status[hidden] { display: none; }
+
+.action .message-heading { display: flex; align-items: center; gap: 7px; }
+.whatsapp-icon { display: block; flex: 0 0 20px; width: 20px; height: 20px; }

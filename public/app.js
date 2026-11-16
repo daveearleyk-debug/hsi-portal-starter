@@ -393,8 +393,11 @@ function renderDashboard(data) {
           el('span', { text: company.phone })
         ]),
         el('a', { class: 'action', href: company.whatsappUrl, target: '_blank', rel: 'noopener' }, [
-          el('strong', { text: 'Message' }),
-          el('span', { text: 'Start a quick conversation' })
+          el('strong', { class: 'message-heading' }, [
+            el('img', { class: 'whatsapp-icon', src: '/assets/whatsapp.svg', alt: '', 'aria-hidden': 'true', width: '20', height: '20' }),
+            document.createTextNode('Message')
+          ]),
+          el('span', { text: 'Start a conversation on WhatsApp' })
         ]),
         renderContactCardAction()
       ])
