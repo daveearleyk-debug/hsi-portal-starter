@@ -106,3 +106,9 @@ inspection date icon. Date icons use semantic time elements with complete
 accessible dates. App/stylesheet asset versions are bumped for refreshed
 browser caches. No environment or backend changes are required.
 Validation: syntax checks and 111 tests pass, including multi-year date icons.
+
+Partner-tier badge removed from the portal UI, including its unused styles.
+No environment value or default sample tier can restore it, because the page
+no longer renders a tier. Rankings, agent identity and inspection history
+remain as before. Browser asset versions are bumped. Validation: syntax
+checks and all 111 existing automated tests pass locally.

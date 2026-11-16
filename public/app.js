@@ -248,7 +248,7 @@ function renderRankings(rankings) {
 }
 
 function renderDashboard(data) {
-  const { company, agent, stats, tier, inspections } = data;
+  const { company, agent, stats, inspections } = data;
   applyBrand(company);
   document.title = `${agent.firstName} ${agent.lastName} | ${company.appName}`;
   app.replaceChildren();
@@ -273,11 +273,7 @@ function renderDashboard(data) {
       avatar,
       el('h1', { class: 'agent-name', text: `${agent.firstName} ${agent.lastName}` }),
       el('p', { class: 'agency', text: agent.agency || 'Real estate partner' }),
-      ...(data.meta?.mode === 'live' ? [renderRankings(data.rankings)] : []),
-      el('div', { class: 'tier' }, [
-        el('span', { class: 'tier-dot', 'aria-hidden': 'true' }),
-        document.createTextNode(tier.label || 'Partner')
-      ])
+      ...(data.meta?.mode === 'live' ? [renderRankings(data.rankings)] : [])
     ])
   );
 
