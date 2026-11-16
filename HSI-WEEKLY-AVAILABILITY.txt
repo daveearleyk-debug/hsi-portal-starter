@@ -1,0 +1,48 @@
+HSI WEEKLY AVAILABILITY UPDATE
+
+Upload the contents of this ZIP to the ROOT of your existing GitHub repository:
+https://github.com/daveearleyk-debug/hsi-portal-starter
+
+Keep the public/ and test/ folder structures. Commit the upload and let the
+existing Render service auto-deploy. You do not need another Render service.
+
+No new environment variables are required for HSI. Defaults select Dave Earle's
+verified Spectora inspector ID (29852) and America/Edmonton time (Yellowknife).
+Keep all existing Render variables, including UPSTREAM_TIMEOUT_MS=30000.
+
+The calendar appears beneath Schedule Next Inspection. It displays Monday to
+Sunday of the current week, highlights today and shows future open start times.
+On narrow screens, scroll the calendar sideways to see all seven days.
+Selecting a time opens your existing scheduler; the time is NOT automatically
+selected or reserved. Confirm the service, property and time in the scheduler.
+
+Availability is fetched separately from the dashboard and cached for five
+minutes across agents. Open tabs refresh every five minutes and when revisited.
+The calendar does not expose inspection addresses, client names or appointments.
+An availability error leaves the rest of the portal working and offers a
+scheduler link. No live availability or demo availability has been fabricated.
+
+Spectora applies working hours, bookings, blocked time, events and time off.
+Its availability endpoint does not apply service-area restrictions, service
+limitations, minimum lead time or property-specific duration adjustments.
+The display is provisional until confirmed in the scheduler.
+
+Without configured service IDs, Spectora uses your company's default inspection
+duration; the returned duration is shown below the calendar. To use the base
+duration of specific services, optionally set AVAILABILITY_SERVICE_IDS in Render
+to comma-separated Spectora service IDs. Optional overrides:
+AVAILABILITY_INSPECTOR_ID=29852
+AVAILABILITY_TIME_ZONE=America/Edmonton
+
+If the calendar says temporarily unavailable after deployment, verify your API
+key can access GET /v2/availabilities with Spectora. This endpoint is documented
+but is not exposed by the connected Spectora tools, so live account access has
+not been verified here. Do not paste your API key into chat or GitHub.
+
+Validation: all 119 automated tests and JavaScript syntax checks passed.
+Coverage includes local week boundaries, DST/year rollover, past-time removal,
+inspector filtering, malformed responses, authorization/company checks, caching,
+concurrent refresh, outage fallback, seven-day rendering and scheduler links.
+The existing repository's heuristic safety scanner flags synthetic URLs already
+in its tests/history; these are not live credentials. No API keys or agent access
+links are included in this update.

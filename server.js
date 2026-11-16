@@ -101,6 +101,10 @@ function createConfig(env = process.env) {
     signingSecret: env.PORTAL_SIGNING_SECRET || '',
     agentAccessHashes: parseAgentAccessHashes(env.PORTAL_AGENT_ACCESS_HASHES),
     rankingsEnabled: env.PORTAL_RANKINGS_ENABLED !== 'false',
+    availabilityInspectorId: validatedPositiveDecimalId(env.AVAILABILITY_INSPECTOR_ID || '29852', 'AVAILABILITY_INSPECTOR_ID'),
+    availabilityTimeZone: env.AVAILABILITY_TIME_ZONE || 'America/Edmonton',
+    availabilityServiceIds: (env.AVAILABILITY_SERVICE_IDS || '').split(',').map(id => id.trim()).filter(Boolean)
+      .map(id => validatedPositiveDecimalId(id, 'AVAILABILITY_SERVICE_IDS')),
     upstreamTimeoutMs: boundedInteger(env.UPSTREAM_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, 100, 30_000),
     upstreamMaxBytes: boundedInteger(env.UPSTREAM_MAX_BYTES, DEFAULT_MAX_BYTES, 1024, 5_000_000),
     rateLimitMax: boundedInteger(env.RATE_LIMIT_MAX, 60, 1, 1000),
@@ -396,6 +400,44 @@ function query(pathname, filters) {
   return `${pathname}?${params.toString().replace(/%5B/g, '[').replace(/%5D/g, ']')}`;
 }
 
+function currentWeek(now, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(now));
+  const part = type => parts.find(item => item.type === type).value;
+  const today = `${part('year')}-${part('month')}-${part('day')}`;
+  const monday = new Date(`${today}T12:00:00Z`);
+  monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
+  return Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(monday);
+    day.setUTCDate(day.getUTCDate() + index);
+    return day.toISOString().slice(0, 10);
+  });
+}
+
+function normalizeAvailability(response, inspectorId, dates, now) {
+  const rows = response?.data;
+  const matches = Array.isArray(rows) ? rows.filter(row => String(row?.attributes?.inspector_id) === inspectorId) : [];
+  const timeZone = response?.meta?.time_zone;
+  const duration = response?.meta?.duration;
+  if (matches.length !== 1 || typeof timeZone !== 'string' || !(Number(duration) > 0)) throw new Error('Availability response incomplete');
+  new Intl.DateTimeFormat('en-CA', { timeZone });
+  const sourceDays = matches[0].attributes.days;
+  if (!Array.isArray(sourceDays)) throw new Error('Availability days missing');
+  const days = dates.map(date => {
+    const matching = sourceDays.filter(day => day?.date === date);
+    if (matching.length !== 1 || !Array.isArray(matching[0].slots)) throw new Error('Availability day incomplete');
+    const slots = new Set();
+    for (const slot of matching[0].slots) {
+      const datetime = slot?.datetime;
+      if (typeof datetime !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(datetime) || !Number.isFinite(Date.parse(datetime))) throw new Error('Invalid availability slot');
+      const slotDate = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(datetime));
+      if (slotDate !== date) throw new Error('Availability slot date mismatch');
+      if (Date.parse(datetime) > now) slots.add(datetime);
+    }
+    return { date, slots: [...slots].sort((a, b) => Date.parse(a) - Date.parse(b)) };
+  });
+  return { available: true, timeZone, duration: Number(duration), days, updatedAt: new Date(now).toISOString() };
+}
+
 function createRateLimiter(config, nowMs) {
   const buckets = new Map();
   return key => {
@@ -553,6 +595,33 @@ function createPortal(options = {}) {
   let rankingCache = null;
   let rankingPending = null;
   let rankingRetryAt = 0;
+  let availabilityCache = null;
+  let availabilityPending = null;
+  let availabilityRetryAt = 0;
+
+  async function getAvailability() {
+    const dates = currentWeek(nowMs(), config.availabilityTimeZone);
+    const week = dates[0];
+    if (config.mode === 'demo') return { available: false, demo: true };
+    if (availabilityCache?.week === week && availabilityCache.expiresAt > nowMs()) return availabilityCache.payload;
+    if (availabilityRetryAt > nowMs()) return { available: false };
+    try {
+      if (!availabilityPending) {
+        availabilityPending = (async () => {
+          const params = new URLSearchParams({ start_date: week, end_date: dates[6] });
+          for (const id of config.availabilityServiceIds) params.append('service_ids[]', id);
+          const response = await upstreamGet(`/v2/availabilities?${params}`);
+          const payload = normalizeAvailability(response, config.availabilityInspectorId, dates, nowMs());
+          availabilityCache = { week, payload, expiresAt: nowMs() + 5 * 60 * 1000 };
+          return payload;
+        })().finally(() => { availabilityPending = null; });
+      }
+      return await availabilityPending;
+    } catch {
+      availabilityRetryAt = nowMs() + 30 * 1000;
+      return { available: false };
+    }
+  }
 
   async function getAgentRankings(connectionId) {
     if (!config.rankingsEnabled) return null;
@@ -673,7 +742,14 @@ function createPortal(options = {}) {
           const key = crypto.createHash('sha256').update(`${grant}:${connectionId}`).digest('hex');
           if (!allowRequest(key)) { sendJson(res, 429, { error: 'Rate limit exceeded' }); status = 429; return; }
         }
-        const payload = await getAgentPayload(connectionId);
+        const availabilityRoute = pathname === `/api/agent/${connectionId}/availability`;
+        if (availabilityRoute && config.mode === 'live') {
+          // Revoked/deleted or cross-company connections cannot read the calendar.
+          const connection = await upstreamGet(`/v2/connections/${encodeURIComponent(connectionId)}`);
+          assertRecordId(connection.data, connectionId, 'connection');
+          assertCompanyScope([connection.data], config.companyId);
+        }
+        const payload = availabilityRoute ? await getAvailability() : await getAgentPayload(connectionId);
         if (!payload) { sendJson(res, 404, { error: 'Agent not found' }); status = 404; return; }
         sendJson(res, 200, payload); status = 200; return;
       }
@@ -693,7 +769,7 @@ function createPortal(options = {}) {
     }
   }
 
-  return { config, handleRequest, getAgentPayload };
+  return { config, handleRequest, getAgentPayload, getAvailability };
 }
 
 function createServer(portal) {
@@ -735,5 +811,7 @@ module.exports = {
   handleRequest: defaultPortal.handleRequest,
   readSampleAgent,
   mapInspection,
+  currentWeek,
+  normalizeAvailability,
   loadEnvFile
 };

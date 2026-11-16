@@ -247,6 +247,67 @@ function renderRankings(rankings) {
   ]);
 }
 
+function renderAvailability(company) {
+  const content = el('div', { role: 'status', 'aria-live': 'polite' }, [
+    el('p', { class: 'privacy-note', text: 'Checking open times…' })
+  ]);
+  const section = el('section', { class: 'section availability-section' }, [
+    el('h2', { text: 'Available This Week' }), content
+  ]);
+  let pending = false;
+  const refresh = async () => {
+    if (pending) return;
+    pending = true;
+    try {
+      const response = await fetch(`/api/agent/${encodeURIComponent(getUuid())}/availability`, {
+        cache: 'no-store', headers: portalGrant ? { Authorization: `Bearer ${portalGrant}` } : {}
+      });
+      if (!response.ok) throw new Error('Availability unavailable');
+      const data = await response.json();
+      if (!data.available) throw new Error('Availability unavailable');
+      const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: data.timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
+      const today = localDate.format(new Date());
+      const calendar = el('div', { class: 'availability-grid', 'aria-label': 'Monday through Sunday availability' });
+      for (const day of data.days) {
+        const date = new Date(`${day.date}T12:00:00Z`);
+        const label = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', weekday: 'short' }).format(date);
+        const slots = day.slots.filter(value => Date.parse(value) > Date.now());
+        const card = el('article', { class: `availability-day${day.date === today ? ' availability-today' : ''}` }, [
+          el('p', { class: 'availability-day-name', text: label }),
+          el('time', { class: 'availability-date', datetime: day.date, text: date.getUTCDate() }),
+          ...(day.date === today ? [el('span', { class: 'availability-today-label', text: 'Today' })] : [])
+        ]);
+        const slotLink = datetime => el('a', {
+          class: 'availability-slot', href: company.bookingUrl, target: '_blank', rel: 'noopener noreferrer',
+          'aria-label': `Open scheduler for ${fmtDate(day.date)}, ${new Intl.DateTimeFormat('en-CA', { timeZone: data.timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(datetime))}`,
+          text: new Intl.DateTimeFormat('en-CA', { timeZone: data.timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(datetime))
+        });
+        if (!slots.length) card.append(el('span', { class: 'availability-empty', text: day.date < today ? 'Past' : 'No open times' }));
+        else {
+          card.append(...slots.slice(0, 3).map(slotLink));
+          if (slots.length > 3) card.append(el('details', { class: 'availability-more' }, [
+            el('summary', { text: `+${slots.length - 3} more` }), ...slots.slice(3).map(slotLink)
+          ]));
+        }
+        calendar.append(card);
+      }
+      content.replaceChildren(
+        el('p', { class: 'availability-range', text: `${fmtDate(data.days[0].date)} – ${fmtDate(data.days[6].date)}` }),
+        calendar,
+        el('p', { class: 'privacy-note', text: `Yellowknife time · ${data.duration}-hour inspection slots. Times are provisional; select a time to open the scheduler and confirm availability for the property and service.` })
+      );
+    } catch {
+      content.replaceChildren(el('p', { class: 'privacy-note', text: 'Open times are temporarily unavailable. Check the online scheduler for current availability.' }),
+        el('a', { href: company.bookingUrl, target: '_blank', rel: 'noopener noreferrer', text: 'Check availability' }));
+    } finally { pending = false; }
+  };
+  refresh();
+  // Refresh when a visitor returns to this tab, including after a date/week rollover.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  setInterval(() => { if (!document.hidden) refresh(); }, 5 * 60 * 1000);
+  return section;
+}
+
 function renderDashboard(data) {
   const { company, agent, stats, inspections } = data;
   applyBrand(company);
@@ -300,6 +361,8 @@ function renderDashboard(data) {
       ])
     ])
   );
+
+  if (data.meta?.mode === 'live') app.append(renderAvailability(company));
 
   app.append(
     el('section', { class: 'section' }, [

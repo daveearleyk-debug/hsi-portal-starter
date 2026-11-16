@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname,'../public/app.js'),'utf8');
 const token = (exp=Math.floor(Date.now()/1000)+3600) => Buffer.from(JSON.stringify({v:1,connectionId:'17',exp})).toString('base64url')+'.synthetic-signature';
-async function browser(grant,denyClipboard=false,inspectionRows=[],extraStats={},rankings=null) {
+async function browser(grant,denyClipboard=false,inspectionRows=[],extraStats={},rankings=null,availability={available:false}) {
  const nodes=[];
  function node(tag) {
   const n={tag,children:[],events:{},hidden:false,value:'',style:{setProperty(){}},
@@ -19,13 +19,13 @@ async function browser(grant,denyClipboard=false,inspectionRows=[],extraStats={}
  const location={origin:'https://portal.example.test',pathname:'/agent/17',search:'',hash:'#grant='+grant};
  const state={clipboard:null,authorization:null,nodes,app,storage,fetchCalls:0};
  const payload={rankings,meta:{mode:'live'},company:{brand:{},appName:'HSI',name:'HSI',tagline:'',phone:'8674474663',bookingUrl:'https://example.test/book',whatsappUrl:'https://wa.me/18674474663',website:'https://example.test',license:'RHI'},agent:{firstName:'Example',lastName:'Agent'},tier:{label:'Partner'},stats:{totalInspections:1,buyingInspections:1,sellingInspections:0,...extraStats},inspections:inspectionRows};
- const context={URL,URLSearchParams,atob,Date,location,
+ const context={URL,URLSearchParams,atob,Date,location,setInterval(){},
   history:{replaceState(){location.hash=''}},
   sessionStorage:{setItem(k,v){storage.set(k,v)},getItem(k){return storage.get(k)}},
   navigator:{clipboard:{async writeText(value){if(denyClipboard)throw new Error('Denied');state.clipboard=value}}},
-  document:{getElementById(){return app},createElement:node,createTextNode(text){return {textContent:text}},querySelector(){return theme},documentElement:{style:{setProperty(){}}}},
+  document:{addEventListener(){},getElementById(){return app},createElement:node,createTextNode(text){return {textContent:text}},querySelector(){return theme},documentElement:{style:{setProperty(){}}}},
   portalModeCopy:{modeNotice(){return 'Live'}},
-  async fetch(_url,options){state.fetchCalls++;state.authorization=options.headers.Authorization;return {ok:true,async json(){return payload}}}
+  async fetch(_url,options){if(_url.endsWith('/availability'))return {ok:true,async json(){return availability}};state.fetchCalls++;state.authorization=options.headers.Authorization;return {ok:true,async json(){return payload}}}
  };
  vm.runInNewContext(source,context);
  await new Promise(setImmediate);
@@ -155,4 +155,22 @@ test('ranking outage shows an honest message while preserving portal and history
  assert.ok(state.nodes.some(n=>n.textContent==='Rankings are temporarily unavailable.'));
  assert.ok(historyControls(state).search);
  assert.equal(visibleCards(historyControls(state)).length,3);
+});
+
+
+test('availability failure keeps booking, history and private-link controls usable',async()=>{
+ const state=await browser(token());
+ assert.ok(state.nodes.some(n=>n.textContent==='Available This Week'));
+ assert.ok(state.nodes.some(n=>n.textContent==='Check availability'));
+ assert.ok(historyControls(state).search);assert.ok(state.button);
+});
+
+test('weekly calendar shows seven dates and links future slots to scheduler without exposing appointments',async()=>{
+ const dates=Array.from({length:7},(_,i)=>`2099-11-${String(16+i).padStart(2,'0')}`);
+ const availability={available:true,timeZone:'America/Edmonton',duration:2.5,days:dates.map((date,i)=>({date,slots:i===0?[`${date}T13:00:00-07:00`]:[]}))};
+ const state=await browser(token(),false,[],{},null,availability);
+ assert.equal(state.nodes.filter(n=>n.tag==='article'&&n.className.startsWith('availability-day')).length,7);
+ const slot=state.nodes.find(n=>n.className==='availability-slot');
+ assert.equal(slot.href,'https://example.test/book');assert.equal(slot.target,'_blank');
+ assert.ok(state.nodes.some(n=>n.textContent?.includes('2.5-hour inspection slots')));
 });
