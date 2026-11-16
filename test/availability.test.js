@@ -67,6 +67,6 @@ test('shared availability refresh is cached, coalesced, service-aware and expire
 test('upstream failure returns unavailable instead of false open times and backs off', async () => {
   let calls = 0;
   const portal = createPortal({env,log:()=>{},nowMs:()=>now,upstreamGet:async()=>{calls++;throw new Error('Synthetic outage');}});
-  assert.deepEqual(await portal.getAvailability(),{available:false});
+  assert.deepEqual(await portal.getAvailability(),{available:false,reason:'Spectora connection unavailable'});
   await portal.getAvailability();assert.equal(calls,1);
 });

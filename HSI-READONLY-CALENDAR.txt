@@ -1,0 +1,22 @@
+HSI READ-ONLY WEEKLY CALENDAR UPDATE
+
+Extract this ZIP and upload the contents to your existing GitHub repository root.
+Commit the upload and let Render deploy. No environment changes are required.
+
+The weekly calendar displays open times as noninteractive labels. It has no slot
+booking links and no link to the scheduler in its error fallback. The separate
+Schedule Next Inspection buttons elsewhere in the portal are unchanged.
+
+Important: the deployed availability API was checked and returned HTTP 200 with
+available:false. The previous release silently replaced the calendar with a
+scheduler link. This update removes that fallback and displays a safe diagnostic
+status so we can identify the actual problem. It does not claim that live
+availability access is fixed. If times still do not appear, send the text after
+Calendar status. That will distinguish API permissions/endpoint errors, timeouts
+and unexpected response data without exposing API credentials or appointments.
+
+Defaults remain Dave Earle inspector ID 29852 and America/Edmonton time. Slots
+use the company default duration unless AVAILABILITY_SERVICE_IDS is configured.
+Keep UPSTREAM_TIMEOUT_MS=30000 in Render.
+
+Validation: 119 automated tests passed, plus JavaScript syntax checks.

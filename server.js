@@ -598,13 +598,14 @@ function createPortal(options = {}) {
   let availabilityCache = null;
   let availabilityPending = null;
   let availabilityRetryAt = 0;
+  let availabilityFailure = { available: false };
 
   async function getAvailability() {
     const dates = currentWeek(nowMs(), config.availabilityTimeZone);
     const week = dates[0];
     if (config.mode === 'demo') return { available: false, demo: true };
     if (availabilityCache?.week === week && availabilityCache.expiresAt > nowMs()) return availabilityCache.payload;
-    if (availabilityRetryAt > nowMs()) return { available: false };
+    if (availabilityRetryAt > nowMs()) return availabilityFailure;
     try {
       if (!availabilityPending) {
         availabilityPending = (async () => {
@@ -617,9 +618,14 @@ function createPortal(options = {}) {
         })().finally(() => { availabilityPending = null; });
       }
       return await availabilityPending;
-    } catch {
+    } catch (error) {
       availabilityRetryAt = nowMs() + 30 * 1000;
-      return { available: false };
+      const reason = error instanceof UpstreamHttpError
+        ? `Spectora API HTTP ${error.upstreamStatus}`
+        : (['Availability response incomplete', 'Availability days missing', 'Availability day incomplete', 'Invalid availability slot', 'Availability slot date mismatch', 'Spectora API timeout', 'Spectora API response exceeded size limit', 'Spectora API returned malformed JSON'].includes(error.message) ? error.message : 'Spectora connection unavailable');
+      availabilityFailure = { available: false, reason };
+      log({ event: 'availability_unavailable', reason });
+      return availabilityFailure;
     }
   }
 

@@ -264,7 +264,7 @@ function renderAvailability(company) {
       });
       if (!response.ok) throw new Error('Availability unavailable');
       const data = await response.json();
-      if (!data.available) throw new Error('Availability unavailable');
+      if (!data.available) throw new Error(data.reason || 'Availability unavailable');
       const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: data.timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
       const today = localDate.format(new Date());
       const calendar = el('div', { class: 'availability-grid', 'aria-label': 'Monday through Sunday availability' });
@@ -277,9 +277,9 @@ function renderAvailability(company) {
           el('time', { class: 'availability-date', datetime: day.date, text: date.getUTCDate() }),
           ...(day.date === today ? [el('span', { class: 'availability-today-label', text: 'Today' })] : [])
         ]);
-        const slotLink = datetime => el('a', {
-          class: 'availability-slot', href: company.bookingUrl, target: '_blank', rel: 'noopener noreferrer',
-          'aria-label': `Open scheduler for ${fmtDate(day.date)}, ${new Intl.DateTimeFormat('en-CA', { timeZone: data.timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(datetime))}`,
+        const slotLink = datetime => el('span', {
+          class: 'availability-slot',
+          'aria-label': `Available ${fmtDate(day.date)}, ${new Intl.DateTimeFormat('en-CA', { timeZone: data.timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(datetime))}`,
           text: new Intl.DateTimeFormat('en-CA', { timeZone: data.timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(datetime))
         });
         if (!slots.length) card.append(el('span', { class: 'availability-empty', text: day.date < today ? 'Past' : 'No open times' }));
@@ -294,11 +294,11 @@ function renderAvailability(company) {
       content.replaceChildren(
         el('p', { class: 'availability-range', text: `${fmtDate(data.days[0].date)} – ${fmtDate(data.days[6].date)}` }),
         calendar,
-        el('p', { class: 'privacy-note', text: `Yellowknife time · ${data.duration}-hour inspection slots. Times are provisional; select a time to open the scheduler and confirm availability for the property and service.` })
+        el('p', { class: 'privacy-note', text: `Yellowknife time · ${data.duration}-hour inspection slots. Open start times only. Availability depends on the property and service; contact us to confirm.` })
       );
-    } catch {
-      content.replaceChildren(el('p', { class: 'privacy-note', text: 'Open times are temporarily unavailable. Check the online scheduler for current availability.' }),
-        el('a', { href: company.bookingUrl, target: '_blank', rel: 'noopener noreferrer', text: 'Check availability' }));
+    } catch (error) {
+      content.replaceChildren(el('p', { class: 'privacy-note', text: 'The calendar could not load open times from Spectora. Please try again shortly.' }),
+        el('p', { class: 'privacy-note', text: `Calendar status: ${error.message}` }));
     } finally { pending = false; }
   };
   refresh();
