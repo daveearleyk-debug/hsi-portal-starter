@@ -217,35 +217,31 @@ function renderRankings(rankings) {
       el('p', { class: 'ranking-note', text: 'Rankings are temporarily unavailable.' })
     ]);
   }
-  const category = (label, score) => el('div', {
-    class: 'ranking-category', role: 'group',
+  const category = (label, score, overall = false) => el('div', {
+    class: `ranking-category${overall ? ' ranking-category-overall' : ''}`, role: 'group',
     'aria-label': `${label}: ${score.tied ? 'tied ' : ''}rank ${score.rank} of ${rankings.population}, ${score.count} inspections`
   }, [
     el('strong', { class: 'ranking-category-number', text: `#${score.rank}` }),
     el('span', { class: 'ranking-category-label', text: label }),
-    el('span', { class: 'ranking-category-detail', text: `${score.tied ? 'Tied · ' : ''}${score.count} inspections` })
+    ...(score.tied ? [el('span', { class: 'ranking-category-detail', text: 'Tied' })] : [])
   ]);
   const date = rankings.updatedAt ? new Date(rankings.updatedAt) : null;
   const updated = date && Number.isFinite(date.getTime())
     ? `Updated ${new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date)}`
-    : '';
-  return el('section', { class: 'ranking-card', 'aria-label': 'Your realtor ranking with Home Safe Inspection Services' }, [
-    el('p', { class: 'ranking-eyebrow' }, [
-      el('span', { 'aria-hidden': 'true', text: '★ ' }), document.createTextNode('Your HSI ranking')
-    ]),
-    el('div', { class: 'ranking-overall' }, [
-      el('strong', { class: 'ranking-overall-number', text: `#${rankings.overall.rank}` }),
-      el('div', { class: 'ranking-overall-description' }, [
-        el('span', { class: 'ranking-overall-label', text: rankings.overall.tied ? 'Tied overall' : 'Overall ranking' }),
-        el('span', { text: `Among ${rankings.population} realtors` }),
-        el('span', { class: 'ranking-overall-count', text: `${rankings.overall.count} inspections with HSI` })
-      ])
+    : undefined;
+  return el('section', {
+    class: 'ranking-card', 'aria-label': 'Your realtor ranking with Home Safe Inspection Services', title: updated
+  }, [
+    el('div', { class: 'ranking-header' }, [
+      el('p', { class: 'ranking-eyebrow' }, [
+        el('span', { 'aria-hidden': 'true', text: '★ ' }), document.createTextNode('Your HSI ranking')
+      ]),
+      el('span', { class: 'ranking-population', text: `Among ${rankings.population} realtors` })
     ]),
     el('div', { class: 'ranking-grid' }, [
-      category('Buyers', rankings.buyers), category('Sellers', rankings.sellers), category('Pre-sales', rankings.presales)
-    ]),
-    el('p', { class: 'ranking-note', text: 'Based on HSI inspection totals. Equal counts share a rank.' }),
-    ...(updated ? [el('p', { class: 'ranking-updated', text: updated })] : [])
+      category('Overall', rankings.overall, true), category('Buyers', rankings.buyers),
+      category('Sellers', rankings.sellers), category('Pre-sales', rankings.presales)
+    ])
   ]);
 }
 

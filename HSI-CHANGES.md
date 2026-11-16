@@ -81,3 +81,10 @@ Verification: syntax checks and 111 automated tests pass locally. Ranking
 logic was also exercised with minimized live MCP response structures for
 28 agents and 1,186 inspection records. Hosted API-key calls and rendered
 browser appearance require confirmation after deployment.
+
+Compact ranking layout: all four ranks sit in one horizontal row beneath a
+short header. Gold styling, overall emphasis, visible tie indicators and
+accessible inspection counts remain. Repeated inspection counts and footer
+copy are removed from the visible card. The update timestamp is available on
+hover. This is a frontend layout update; ranking calculations are unchanged.
+Validation: syntax checks and the 111 existing automated tests pass locally.

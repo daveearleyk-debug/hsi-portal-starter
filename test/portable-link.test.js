@@ -141,8 +141,10 @@ test('hero displays an overall rank and all three category ranks with tie labels
  const panel=hero.children.find(n=>n.className==='ranking-card');
  assert.ok(panel);
  const text=cardText(panel);
- for(const phrase of ['#4','Among 28 realtors','Buyers','Sellers','Pre-sales','#16','Tied · 3 inspections'])assert.ok(text.includes(phrase),phrase);
+ for(const phrase of ['#4','Among 28 realtors','Buyers','Sellers','Pre-sales','#16','Tied'])assert.ok(text.includes(phrase),phrase);
  assert.ok(hero.children.indexOf(panel)>hero.children.findIndex(n=>n.className==='agent-name'));
+ assert.equal(state.nodes.filter(n=>n.className?.startsWith('ranking-category')&&n.role==='group').length,4);
+ assert.ok(state.nodes.some(n=>n['aria-label']==='Pre-sales: tied rank 16 of 28, 3 inspections'));
 });
 test('ranking outage shows an honest message while preserving portal and history controls',async()=>{
  const state=await browser(token(),false,filterRows,{}, {available:false});
