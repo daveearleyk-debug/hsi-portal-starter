@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname,'../public/app.js'),'utf8');
 const token = (exp=Math.floor(Date.now()/1000)+3600) => Buffer.from(JSON.stringify({v:1,connectionId:'17',exp})).toString('base64url')+'.synthetic-signature';
-async function browser(grant,denyClipboard=false,inspectionRows=[],extraStats={},rankings=null,availability={available:false}) {
+async function browser(grant,denyClipboard=false,inspectionRows=[],extraStats={},rankings=null,availability={available:false},shareMode='unsupported') {
  const nodes=[];
  function node(tag) {
   const n={tag,children:[],events:{},hidden:false,value:'',style:{setProperty(){}},
@@ -19,13 +19,13 @@ async function browser(grant,denyClipboard=false,inspectionRows=[],extraStats={}
  const location={origin:'https://portal.example.test',pathname:'/agent/17',search:'',hash:'#grant='+grant};
  const state={clipboard:null,authorization:null,nodes,app,storage,fetchCalls:0};
  const payload={rankings,meta:{mode:'live'},company:{brand:{},appName:'HSI',name:'HSI',tagline:'',phone:'8674474663',bookingUrl:'https://example.test/book',whatsappUrl:'https://wa.me/18674474663',website:'https://example.test',license:'RHI'},agent:{firstName:'Example',lastName:'Agent'},tier:{label:'Partner'},stats:{totalInspections:1,buyingInspections:1,sellingInspections:0,...extraStats},inspections:inspectionRows};
- const context={URL,URLSearchParams,atob,Date,location,setInterval(){},
+ const context={URL,URLSearchParams,atob,Date,File,location,setInterval(){},
   history:{replaceState(){location.hash=''}},
   sessionStorage:{setItem(k,v){storage.set(k,v)},getItem(k){return storage.get(k)}},
-  navigator:{clipboard:{async writeText(value){if(denyClipboard)throw new Error('Denied');state.clipboard=value}}},
+  navigator:{canShare(){return shareMode!=='unsupported'},async share(data){state.shared=data;if(shareMode==='cancel')throw Object.assign(new Error('Cancelled'),{name:'AbortError'});if(shareMode==='error')throw new Error('Share failed');},clipboard:{async writeText(value){if(denyClipboard)throw new Error('Denied');state.clipboard=value}}},
   document:{addEventListener(){},getElementById(){return app},createElement:node,createTextNode(text){return {textContent:text}},querySelector(){return theme},documentElement:{style:{setProperty(){}}}},
   portalModeCopy:{modeNotice(){return 'Live'}},
-  async fetch(_url,options){if(_url.endsWith('/availability'))return {ok:true,async json(){return availability}};state.fetchCalls++;state.authorization=options.headers.Authorization;return {ok:true,async json(){return payload}}}
+  async fetch(_url,options){if(_url.endsWith('.vcf'))return {ok:true,async arrayBuffer(){return new TextEncoder().encode('BEGIN:VCARD\r\nFN:Synthetic Contact\r\nEND:VCARD').buffer}};if(_url.endsWith('/availability'))return {ok:true,async json(){return availability}};state.fetchCalls++;state.authorization=options.headers.Authorization;return {ok:true,async json(){return payload}}}
  };
  vm.runInNewContext(source,context);
  await new Promise(setImmediate);
@@ -173,4 +173,35 @@ test('weekly calendar shows seven dates and noninteractive future slots without 
  const slot=state.nodes.find(n=>n.className==='availability-slot');
  assert.equal(slot.tag,'span');assert.equal(slot.href,undefined);assert.equal(slot.target,undefined);
  assert.ok(state.nodes.some(n=>n.textContent==='Time slots displayed are available inspection start times for the next 7 days'));
+});
+
+
+test('contact card button replaces Website and shares a VCF attachment through the device share sheet', async()=>{
+ const state=await browser(token(),false,[],{},null,{available:false},'supported');
+ const button=state.nodes.find(n=>n.className==='action contact-card-share');
+ assert.ok(button);assert.equal(button.disabled,false);
+ assert.equal(state.nodes.some(n=>n.textContent==='Website'),false);
+ assert.ok(button.children.some(n=>n.textContent==='Send my Contact Card to Clients'));
+ await button.events.click();
+ assert.equal(state.shared.files.length,1);assert.equal(state.shared.files[0].name,'Dave-Earle-HSI.vcf');
+ assert.equal(state.shared.files[0].type,'text/vcard');
+ assert.match(await state.shared.files[0].text(),/BEGIN:VCARD/);
+ assert.equal(state.nodes.find(n=>n.className==='contact-card-download').hidden,true);
+});
+
+test('unsupported file sharing provides a download rather than claiming a file was attached',async()=>{
+ const state=await browser(token());
+ await state.nodes.find(n=>n.className==='action contact-card-share').events.click();
+ const download=state.nodes.find(n=>n.className==='contact-card-download');
+ assert.equal(download.hidden,false);assert.equal(download.href,'/assets/dave-earle-hsi.vcf');
+ assert.equal(state.shared,undefined);
+ assert.ok(state.nodes.some(n=>n.textContent?.includes('This browser cannot attach')));
+});
+
+test('cancelling contact sharing does not trigger downloads, while a real share failure offers one',async()=>{
+ for(const mode of ['cancel','error']){
+  const state=await browser(token(),false,[],{},null,{available:false},mode);
+  await state.nodes.find(n=>n.className==='action contact-card-share').events.click();
+  assert.equal(state.nodes.find(n=>n.className==='contact-card-download').hidden,mode==='cancel');
+ }
 });

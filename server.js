@@ -19,6 +19,7 @@ const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.vcf': 'text/vcard; charset=utf-8',
   '.svg': 'image/svg+xml; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -720,6 +721,7 @@ function createPortal(options = {}) {
     if (!file) { sendJson(res, 404, { error: 'Not found' }); return; }
     res.writeHead(200, headers({
       'Content-Type': file.contentType,
+      ...(path.extname(decoded).toLowerCase() === '.vcf' ? { 'Content-Disposition': 'attachment; filename="Dave-Earle-HSI.vcf"' } : {}),
       'Cache-Control': file.cacheControl
     }));
     res.end(file.body);

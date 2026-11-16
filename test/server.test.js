@@ -57,3 +57,12 @@ test('app shell is served for agent routes', async () => {
   assert.equal(response.status, 200);
   assert.match(response.body, /Agent Portal/);
 });
+
+
+test('public contact card is served as a downloadable VCF with the supplied HSI identity',async()=>{
+ const response=await request('/assets/dave-earle-hsi.vcf');
+ assert.equal(response.status,200);
+ assert.equal(response.headers['content-type'],'text/vcard; charset=utf-8');
+ assert.match(response.headers['content-disposition'],/attachment; filename="Dave-Earle-HSI.vcf"/);
+ assert.match(response.body,/BEGIN:VCARD/);assert.match(response.body,/FN:Dave Earle/);
+});

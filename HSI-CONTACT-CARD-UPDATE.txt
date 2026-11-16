@@ -1,0 +1,25 @@
+HSI CONTACT CARD UPDATE
+
+Extract and upload the ZIP contents to your existing GitHub repository root.
+Keep the public/assets/ and test/ folder structures. Commit and let Render deploy.
+No environment changes are required.
+
+Replaces the Website action with:
+Send my Contact Card to Clients
+
+Uses your exact original uploaded VCF, renamed Dave-Earle-HSI.vcf for recipients.
+On phones/browsers that support sharing VCF files, tap the button and choose
+Messages from the phone's share sheet, then choose the client and send.
+The website cannot force Messages as the share target or send automatically.
+
+If the browser cannot share this file type or sharing fails, the tile offers a
+Download contact card link. Download the VCF and use the phone's file sharing
+controls or attach it manually in Messages. Cancel leaves the portal unchanged.
+The card is preloaded before the button is enabled to retain the browser's
+required user gesture. No API credentials or private portal links are shared.
+The VCF is served publicly as a business contact card for clients to receive.
+
+125 automated tests and JavaScript syntax checks passed. The supplied VCF was
+copied byte-for-byte, including its original photo and contact details.
+Native Messages attachment support must be checked on the recipient phone/browser
+after deployment; automated tests do not establish that device capability.

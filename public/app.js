@@ -308,6 +308,48 @@ function renderAvailability(company) {
   return section;
 }
 
+function renderContactCardAction() {
+  const cardPath = '/assets/dave-earle-hsi.vcf';
+  let cardFile = null;
+  const status = el('p', { class: 'privacy-note contact-card-status', role: 'status', 'aria-live': 'polite', hidden: true });
+  const fallback = el('a', { class: 'contact-card-download', href: cardPath, download: 'Dave-Earle-HSI.vcf', hidden: true, text: 'Download contact card' });
+  const button = el('button', { class: 'action contact-card-share', type: 'button', disabled: true }, [
+    el('strong', { text: 'Send my Contact Card to Clients' }),
+    el('span', { text: 'Share Dave’s contact card by text' })
+  ]);
+  // Prepare the file before the click so sharing retains the required user gesture.
+  fetch(cardPath, { cache: 'no-cache' }).then(response => {
+    if (!response.ok) throw new Error('Contact card unavailable');
+    return response.arrayBuffer();
+  }).then(bytes => {
+    cardFile = new File([bytes], 'Dave-Earle-HSI.vcf', { type: 'text/vcard' });
+  }).catch(() => {}).finally(() => { button.disabled = false; });
+  function showDownload(message) {
+    status.textContent = message;
+    status.hidden = false;
+    fallback.hidden = false;
+  }
+  button.addEventListener('click', async () => {
+    if (cardFile && typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
+      try {
+        if (navigator.canShare({ files: [cardFile] })) {
+          // The agent chooses Messages and their recipient; nothing is sent automatically.
+          await navigator.share({ files: [cardFile], title: 'Dave Earle — Home Safe Inspection Services' });
+          status.hidden = true;
+          fallback.hidden = true;
+          return;
+        }
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        showDownload('The contact card could not be shared. Download it, then attach it in Messages.');
+        return;
+      }
+    }
+    showDownload('This browser cannot attach the contact card directly. Download it, then share it through Messages or attach it to your text.');
+  });
+  return el('div', { class: 'contact-card-action' }, [button, status, fallback]);
+}
+
 function renderDashboard(data) {
   const { company, agent, stats, inspections } = data;
   applyBrand(company);
@@ -354,10 +396,7 @@ function renderDashboard(data) {
           el('strong', { text: 'Message' }),
           el('span', { text: 'Start a quick conversation' })
         ]),
-        el('a', { class: 'action', href: company.website, target: '_blank', rel: 'noopener' }, [
-          el('strong', { text: 'Website' }),
-          el('span', { text: 'View services and resources' })
-        ])
+        renderContactCardAction()
       ])
     ])
   );
