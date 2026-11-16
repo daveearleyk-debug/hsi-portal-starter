@@ -254,7 +254,7 @@ function renderDashboard(data) {
   app.append(
     el('header', { class: 'topbar' }, [
       el('div', { class: 'brand-lockup' }, [
-        el('div', { class: 'brand', text: company.name }),
+        el('img', { class: 'brand-logo', src: '/assets/hsi-letterhead.jpg', alt: company.name, width: '1200', height: '475' }),
         el('p', { class: 'company-tagline', text: company.tagline })
       ]),
       el('div', { class: 'badge', text: company.appName })

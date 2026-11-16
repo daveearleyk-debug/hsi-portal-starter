@@ -88,3 +88,13 @@ accessible inspection counts remain. Repeated inspection counts and footer
 copy are removed from the visible card. The update timestamp is available on
 hover. This is a frontend layout update; ranking calculations are unchanged.
 Validation: syntax checks and the 111 existing automated tests pass locally.
+
+Official HSI branding: original HSI Logo.png replaces the loading placeholder;
+original Letterhead(2).jpg appears at the upper left of the portal header.
+Both supplied files are copied byte-for-byte into public/assets, rendered
+without cropping at their original aspect ratios. The server declares JPG
+and JPEG image MIME types. Loading/header styling uses white backgrounds to
+blend with the supplied image backgrounds. App and stylesheet versions are
+updated so browsers fetch the new branding. Existing agent avatars remain
+unchanged. Validation: syntax checks, 111 automated tests, and local HTTP
+checks for exact original image bytes and correct content types passed.

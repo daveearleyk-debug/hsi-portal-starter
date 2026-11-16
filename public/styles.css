@@ -64,9 +64,11 @@ button:focus-visible,
 }
 
 .loading img {
-  width: 108px;
-  height: 108px;
-  border-radius: 28px;
+  width: 260px;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0;
+  object-fit: contain;
 }
 
 .topbar {
@@ -416,3 +418,12 @@ button:focus-visible,
 .ranking-category-detail { color: #665634; font-size: 9px; line-height: 1.2; }
 .ranking-note { margin: 6px 0 0; color: #665634; font-size: 11px; line-height: 1.4; }
 .ranking-unavailable { padding: 10px; box-shadow: none; }
+
+/* Official HSI images are shown in full, at their original aspect ratios. */
+.topbar { gap: 12px; padding: 10px 16px; background: #fff; }
+.brand-lockup { flex: 1; min-width: 0; }
+.brand-logo { display: block; width: 240px; max-width: 100%; height: auto; object-fit: contain; }
+.topbar .badge { flex: 0 1 110px; text-align: center; font-size: 10px; letter-spacing: 0.04em; }
+.topbar .company-tagline { margin-top: 3px; font-size: 10px; line-height: 1.35; }
+
+.loading { background: #fff; }
