@@ -70,3 +70,20 @@ test('upstream failure returns unavailable instead of false open times and backs
   assert.deepEqual(await portal.getAvailability(),{available:false,reason:'Spectora connection unavailable'});
   await portal.getAvailability();assert.equal(calls,1);
 });
+
+
+test('Spectora Rails Mountain zone name is normalized and 30-minute availability is retained', () => {
+  const response = fixture();
+  response.meta.time_zone = 'Mountain Time (US & Canada)';
+  response.meta.duration = 0.5;
+  const payload = normalizeAvailability(response, '29852', dates, now);
+  assert.equal(payload.available, true);
+  assert.equal(payload.timeZone, 'America/Denver');
+  assert.equal(payload.duration, 0.5);
+  assert.deepEqual(payload.days[0].slots, ['2026-11-16T13:00:00-07:00']);
+});
+
+test('an unrecognized upstream zone cannot silently shift available times', () => {
+  const response = fixture(); response.meta.time_zone = 'Unrecognized Company Zone';
+  assert.throws(() => normalizeAvailability(response, '29852', dates, now));
+});

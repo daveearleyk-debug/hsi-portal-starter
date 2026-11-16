@@ -1,0 +1,20 @@
+HSI CALENDAR TIME-ZONE FIX
+
+Upload the extracted contents to the root of your existing GitHub repository.
+Commit and wait for Render to deploy. No environment-variable changes required.
+
+Root cause: Spectora returned the Rails display name Mountain Time (US & Canada).
+The calendar passed that name to JavaScript Intl, which requires an IANA zone
+and raised a RangeError. The fix normalizes that exact known Rails name to its
+documented IANA equivalent, America/Denver. Other valid IANA zones still work;
+unrecognized names do not silently default to a different time zone.
+
+The calendar remains read-only. Slots are labels with no scheduler links.
+The supplied API response uses duration=0.5, so the display accurately says
+open times are based on 30 minutes of availability. These are NOT a guarantee
+that a full inspection fits. The selected service/property may require longer.
+AVAILABILITY_SERVICE_IDS can optionally set the service-based duration later.
+
+Tests: all 121 automated tests passed, plus JavaScript syntax checks.
+Regression tests cover the exact time-zone name and 0.5 duration shown in the
+live response. Final live display verification requires deployment.

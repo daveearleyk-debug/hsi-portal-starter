@@ -294,7 +294,7 @@ function renderAvailability(company) {
       content.replaceChildren(
         el('p', { class: 'availability-range', text: `${fmtDate(data.days[0].date)} – ${fmtDate(data.days[6].date)}` }),
         calendar,
-        el('p', { class: 'privacy-note', text: `Yellowknife time · ${data.duration}-hour inspection slots. Open start times only. Availability depends on the property and service; contact us to confirm.` })
+        el('p', { class: 'privacy-note', text: `Yellowknife time · Open start times based on ${Math.round(data.duration * 60)} minutes of availability. A full inspection may need more time; contact us to confirm.` })
       );
     } catch (error) {
       content.replaceChildren(el('p', { class: 'privacy-note', text: 'The calendar could not load open times from Spectora. Please try again shortly.' }),

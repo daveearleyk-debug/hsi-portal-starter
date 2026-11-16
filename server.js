@@ -416,7 +416,9 @@ function currentWeek(now, timeZone) {
 function normalizeAvailability(response, inspectorId, dates, now) {
   const rows = response?.data;
   const matches = Array.isArray(rows) ? rows.filter(row => String(row?.attributes?.inspector_id) === inspectorId) : [];
-  const timeZone = response?.meta?.time_zone;
+  // Spectora can return Rails display names rather than IANA zone identifiers.
+  const upstreamTimeZone = response?.meta?.time_zone;
+  const timeZone = upstreamTimeZone === 'Mountain Time (US & Canada)' ? 'America/Denver' : upstreamTimeZone;
   const duration = response?.meta?.duration;
   if (matches.length !== 1 || typeof timeZone !== 'string' || !(Number(duration) > 0)) throw new Error('Availability response incomplete');
   new Intl.DateTimeFormat('en-CA', { timeZone });
