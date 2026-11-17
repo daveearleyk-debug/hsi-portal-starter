@@ -439,14 +439,13 @@ function query(pathname, filters) {
   return `${pathname}?${params.toString().replace(/%5B/g, '[').replace(/%5D/g, ']')}`;
 }
 
-function currentWeek(now, timeZone) {
+function nextSevenDays(now, timeZone) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(now));
   const part = type => parts.find(item => item.type === type).value;
   const today = `${part('year')}-${part('month')}-${part('day')}`;
-  const monday = new Date(`${today}T12:00:00Z`);
-  monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
+  const start = new Date(`${today}T12:00:00Z`);
   return Array.from({ length: 7 }, (_, index) => {
-    const day = new Date(monday);
+    const day = new Date(start);
     day.setUTCDate(day.getUTCDate() + index);
     return day.toISOString().slice(0, 10);
   });
@@ -642,19 +641,19 @@ function createPortal(options = {}) {
   let availabilityFailure = { available: false };
 
   async function getAvailability() {
-    const dates = currentWeek(nowMs(), config.availabilityTimeZone);
-    const week = dates[0];
+    const dates = nextSevenDays(nowMs(), config.availabilityTimeZone);
+    const startDate = dates[0];
     if (config.mode === 'demo') return { available: false, demo: true };
-    if (availabilityCache?.week === week && availabilityCache.expiresAt > nowMs()) return availabilityCache.payload;
+    if (availabilityCache?.startDate === startDate && availabilityCache.expiresAt > nowMs()) return availabilityCache.payload;
     if (availabilityRetryAt > nowMs()) return availabilityFailure;
     try {
       if (!availabilityPending) {
         availabilityPending = (async () => {
-          const params = new URLSearchParams({ start_date: week, end_date: dates[6] });
+          const params = new URLSearchParams({ start_date: startDate, end_date: dates[6] });
           for (const id of config.availabilityServiceIds) params.append('service_ids[]', id);
           const response = await upstreamGet(`/v2/availabilities?${params}`);
           const payload = normalizeAvailability(response, config.availabilityInspectorId, dates, nowMs());
-          availabilityCache = { week, payload, expiresAt: nowMs() + 5 * 60 * 1000 };
+          availabilityCache = { startDate, payload, expiresAt: nowMs() + 5 * 60 * 1000 };
           return payload;
         })().finally(() => { availabilityPending = null; });
       }
@@ -860,7 +859,7 @@ module.exports = {
   handleRequest: defaultPortal.handleRequest,
   readSampleAgent,
   mapInspection,
-  currentWeek,
+  nextSevenDays,
   normalizeAvailability,
   loadEnvFile
 };

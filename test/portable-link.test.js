@@ -160,15 +160,17 @@ test('ranking outage shows an honest message while preserving portal and history
 
 test('availability failure keeps booking, history and private-link controls usable',async()=>{
  const state=await browser(token());
- assert.ok(state.nodes.some(n=>n.textContent==='Available This Week'));
+ assert.ok(state.nodes.some(n=>n.textContent==='Availability — Next 7 Days'));
  assert.ok(state.nodes.some(n=>n.textContent==='Calendar status: Availability unavailable'));
  assert.ok(historyControls(state).search);assert.ok(state.button);
 });
 
-test('weekly calendar shows seven dates and noninteractive future slots without scheduler links',async()=>{
+test('rolling calendar shows seven dates and noninteractive future slots without scheduler links',async()=>{
  const dates=Array.from({length:7},(_,i)=>`2099-11-${String(16+i).padStart(2,'0')}`);
  const availability={available:true,timeZone:'America/Edmonton',duration:2.5,days:dates.map((date,i)=>({date,slots:i===0?[`${date}T13:00:00-07:00`]:[]}))};
  const state=await browser(token(),false,[],{},null,availability);
+ assert.ok(state.nodes.some(n=>n.tag==='h2'&&n.textContent==='Availability — Next 7 Days'));
+ assert.ok(state.nodes.some(n=>n.className==='availability-grid'&&n['aria-label']==='Availability from today through the next six days'));
  assert.equal(state.nodes.filter(n=>n.tag==='article'&&n.className.startsWith('availability-day')).length,7);
  const slot=state.nodes.find(n=>n.className==='availability-slot');
  assert.equal(slot.tag,'span');assert.equal(slot.href,undefined);assert.equal(slot.target,undefined);

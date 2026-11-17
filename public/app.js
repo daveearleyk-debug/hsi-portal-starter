@@ -254,7 +254,7 @@ function renderAvailability(company) {
     el('p', { class: 'privacy-note', text: 'Checking open times…' })
   ]);
   const section = el('section', { class: 'section availability-section' }, [
-    el('h2', { text: 'Available This Week' }), content
+    el('h2', { text: 'Availability — Next 7 Days' }), content
   ]);
   let pending = false;
   const refresh = async () => {
@@ -269,7 +269,7 @@ function renderAvailability(company) {
       if (!data.available) throw new Error(data.reason || 'Availability unavailable');
       const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: data.timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
       const today = localDate.format(new Date());
-      const calendar = el('div', { class: 'availability-grid', 'aria-label': 'Monday through Sunday availability' });
+      const calendar = el('div', { class: 'availability-grid', 'aria-label': 'Availability from today through the next six days' });
       for (const day of data.days) {
         const date = new Date(`${day.date}T12:00:00Z`);
         const label = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', weekday: 'short' }).format(date);
@@ -304,7 +304,7 @@ function renderAvailability(company) {
     } finally { pending = false; }
   };
   refresh();
-  // Refresh when a visitor returns to this tab, including after a date/week rollover.
+  // Refresh when a visitor returns to this tab, including after a date rollover.
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   setInterval(() => { if (!document.hidden) refresh(); }, 5 * 60 * 1000);
   return section;

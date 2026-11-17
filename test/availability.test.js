@@ -1,19 +1,21 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {currentWeek, normalizeAvailability, createPortal, createGrant} = require('../server');
+const {nextSevenDays, normalizeAvailability, createPortal, createGrant} = require('../server');
 const now = Date.parse('2026-11-16T18:00:00Z');
-const dates = currentWeek(now, 'America/Edmonton');
+const dates = nextSevenDays(now, 'America/Edmonton');
 function fixture() {
   return {data: [{attributes: {inspector_id: 29852, private_note: 'must-not-leak', days: dates.map((date, i) => ({date, slots: i === 0 ? [
     {datetime: `${date}T09:00:00-07:00`}, {datetime: `${date}T13:00:00-07:00`}, {datetime: `${date}T13:00:00-07:00`}
   ] : []}))}}, {attributes: {inspector_id: 999, days: []}}], meta: {time_zone: 'America/Edmonton', duration: 2.5}};
 }
-test('week boundaries use local Monday through Sunday, including year and DST rollover', () => {
+test('seven-day range starts on the local date, including year and DST rollover', () => {
+  assert.deepEqual(nextSevenDays(Date.parse('2026-11-17T18:00:00Z'), 'America/Edmonton'), ['2026-11-17','2026-11-18','2026-11-19','2026-11-20','2026-11-21','2026-11-22','2026-11-23']);
+  assert.equal(nextSevenDays(Date.parse('2026-12-29T18:00:00Z'), 'America/Edmonton')[6], '2027-01-04');
   assert.deepEqual(dates, ['2026-11-16','2026-11-17','2026-11-18','2026-11-19','2026-11-20','2026-11-21','2026-11-22']);
-  assert.equal(currentWeek(Date.parse('2026-11-16T01:00:00Z'), 'America/Edmonton')[0], '2026-11-09');
-  assert.equal(currentWeek(Date.parse('2027-01-01T18:00:00Z'), 'America/Edmonton')[0], '2026-12-28');
-  assert.equal(currentWeek(Date.parse('2026-03-08T18:00:00Z'), 'America/Edmonton')[6], '2026-03-08');
+  assert.equal(nextSevenDays(Date.parse('2026-11-16T01:00:00Z'), 'America/Edmonton')[0], '2026-11-15');
+  assert.equal(nextSevenDays(Date.parse('2027-01-01T18:00:00Z'), 'America/Edmonton')[0], '2027-01-01');
+  assert.equal(nextSevenDays(Date.parse('2026-03-08T18:00:00Z'), 'America/Edmonton')[6], '2026-03-14');
 });
 test('only selected inspector open times are exposed, with past times removed and duplicates collapsed', () => {
   const payload = normalizeAvailability(fixture(), '29852', dates, now);
@@ -86,4 +88,16 @@ test('Spectora Rails Mountain zone name is normalized and 30-minute availability
 test('an unrecognized upstream zone cannot silently shift available times', () => {
   const response = fixture(); response.meta.time_zone = 'Unrecognized Company Zone';
   assert.throws(() => normalizeAvailability(response, '29852', dates, now));
+});
+
+test('local midnight advances the cached range even before its five-minute expiry',async()=>{
+ let clock=Date.parse('2026-01-18T06:59:00Z');const ranges=[];
+ const portal=createPortal({env,log:()=>{},nowMs:()=>clock,upstreamGet:async path=>{
+  const params=new URL(path,'https://example.test').searchParams;
+  ranges.push([params.get('start_date'),params.get('end_date')]);
+  return {data:[{attributes:{inspector_id:29852,days:nextSevenDays(clock,'America/Edmonton').map(date=>({date,slots:[]}))}}],meta:{time_zone:'America/Edmonton',duration:2}};
+ }});
+ const before=await portal.getAvailability();clock+=120000;const after=await portal.getAvailability();
+ assert.equal(before.days[0].date,'2026-01-17');assert.equal(after.days[0].date,'2026-01-18');
+ assert.deepEqual(ranges,[['2026-01-17','2026-01-23'],['2026-01-18','2026-01-24']]);
 });
