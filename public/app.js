@@ -181,8 +181,8 @@ function renderInspectionHistory(inspections) {
             ...(inspection.reports || []).map(report => el('p', {}, [el('a', {
               href: report.url, target: '_blank', rel: 'noopener noreferrer',
               text: inspection.reports.length > 1
-                ? `View report PDF: ${report.name} (opens in a new tab)`
-                : 'View report PDF (opens in a new tab)'
+                ? `${report.format === 'viewer' ? 'View inspection report' : 'View report PDF'}: ${report.name} (opens in a new tab)`
+                : `${report.format === 'viewer' ? 'View inspection report' : 'View report PDF'} (opens in a new tab)`
             })]))
           ])
         ])
