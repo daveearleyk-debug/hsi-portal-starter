@@ -26,13 +26,14 @@ test('uses trusted Spectora profile photo and blocks lookalike and non-HTTPS ima
  }
  assert.match(SECURITY_HEADERS['Content-Security-Policy'],/img-src 'self' https:\/\/cdn\.spectora\.com;/);
 });
-test('inspection slugs no longer create client portal links',async()=>{
+test('modern inspections receive client portal links in the reports collection',async()=>{
  const rows=[row('1','17','18',{slug:'11111111-1111-1111-1111-111111111111',published_at:'2026-10-02'}),row('2','17',null,{slug:'22222222-2222-2222-2222-222222222222'}),row('3','18','17',{slug:'33333333-3333-3333-3333-333333333333'}),row('4','17',null,{slug:'canceled-example',canceled_at:'2026-10-03'})];
  const result=await app({rows}).getAgentPayload('17');
  assert.equal(result.inspections.length,3);
  for (const inspection of result.inspections) {
   assert.equal(Object.hasOwn(inspection,'portalUrl'),false);
-  assert.deepEqual(inspection.reports,[]);
+  if (inspection.status==='Canceled') assert.deepEqual(inspection.reports,[]);
+  else assert.equal(inspection.reports[0].format,'portal');
  }
  assert.equal(Object.hasOwn(result.inspections[2],'portalUrl'),false);
  assert.equal(JSON.stringify(result).includes('33333333-3333-3333-3333-333333333333'),false);

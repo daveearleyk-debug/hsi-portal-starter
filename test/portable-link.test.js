@@ -212,10 +212,10 @@ test('history keeps records without report PDFs visible without report links',as
  assert.equal(state.nodes.some(n=>n.tag==='a'&&(/report PDF|inspection portal/.test(n.textContent||''))),false);
 });
 
-test('history labels viewer reports and keeps older PDF labels intact',async()=>{
- const rows=[{...filterRows[0],reports:[{name:'Residential',format:'viewer',url:'https://reports.spectora.com/v/reports/bd317357-3f4e-4b80-8637-85d7d937b6cc?ignoreClientComplete=true'}]},filterRows[1]];
+test('history labels client portals and keeps older PDF labels intact',async()=>{
+ const rows=[{...filterRows[0],reports:[{name:'Residential',format:'portal',url:'https://portal.spectora.com/inspection/example-inspection'}]},filterRows[1]];
  const state=await browser(token(),false,rows);
  const anchors=state.nodes.filter(n=>n.tag==='a');
- assert.ok(anchors.some(n=>n.textContent==='View inspection report (opens in a new tab)'&&n.href===rows[0].reports[0].url));
+ assert.ok(anchors.some(n=>n.textContent==='Open client portal (opens in a new tab)'&&n.href===rows[0].reports[0].url));
  assert.ok(anchors.some(n=>n.textContent==='View report PDF (opens in a new tab)'&&n.href===rows[1].reports[0].url));
 });

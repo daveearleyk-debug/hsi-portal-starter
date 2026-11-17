@@ -345,21 +345,16 @@ function reportPdfUrl(value) {
   } catch { return null; }
 }
 
-function inspectionReports(insp, reports, included, companyId) {
+function inspectionReports(insp, included) {
   if (insp.attributes?.canceled_at) return [];
   const date = calendarDate(insp.attributes?.datetime);
   if (!date) return [];
   const links = new Map();
   if (date >= '2023-01-01') {
-    for (const record of reports) {
-      const attrs = record?.attributes || {};
-      if (String(attrs.inspection_id) !== String(insp.id) || attrs.published !== true) continue;
-      if (attrs.company_id != null && !matchesCompanyId(attrs.company_id, companyId)) continue;
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(record.id || '')) continue;
-      const url = `https://reports.spectora.com/v/reports/${record.id}?ignoreClientComplete=true`;
-      links.set(url, { name: attrs.name || 'Inspection report', url, format: 'viewer' });
-    }
-    return [...links.values()];
+    const slug = insp.attributes?.slug;
+    if (typeof slug !== 'string' || !/^[A-Za-z0-9_-]{1,200}$/.test(slug)) return [];
+    return [{ name: 'Client portal', format: 'portal',
+      url: `https://portal.spectora.com/inspection/${encodeURIComponent(slug)}` }];
   }
   // Attachments must be explicitly linked to this authorized inspection.
   const references = insp.relationships?.inspection_attachments?.data;
@@ -641,56 +636,6 @@ function createPortal(options = {}) {
   let rankingCache = null;
   let rankingPending = null;
   let rankingRetryAt = 0;
-  let reportCache = null;
-  let reportPending = null;
-
-  function reportLookupError(stage, error) {
-    const knownReasons = new Set(['Ranking records unavailable', 'Ranking page mismatch', 'Ranking pagination limit',
-      'Incomplete ranking pages', 'Ranking pagination mismatch', 'Incomplete ranking collection',
-      'Spectora API timeout', 'Spectora API response exceeded size limit', 'Spectora API returned malformed JSON']);
-    log({ event: 'spectora_report_lookup', stage, result: 'failed',
-      ...(error instanceof UpstreamHttpError ? { upstreamStatus: error.upstreamStatus } : {}),
-      reason: error instanceof UpstreamHttpError ? 'upstream_http_error'
-        : (knownReasons.has(error?.message) ? error.message : 'request_failed') });
-  }
-
-  async function getInspectionReports(inspections) {
-    const ids = new Set(inspections.filter(inspection => {
-      const date = calendarDate(inspection.attributes?.datetime);
-      return date && date >= '2023-01-01' && !inspection.attributes?.canceled_at;
-    }).map(inspection => String(inspection.id)));
-    if (!ids.size) return [];
-    const listed = await getReports();
-    const records = listed.filter(record => record?.type === 'report' &&
-      record.attributes?.published === true && ids.has(String(record.attributes?.inspection_id)) &&
-      (record.attributes.company_id == null || matchesCompanyId(record.attributes.company_id, config.companyId)));
-    log({ event: 'spectora_report_lookup', stage: 'report_summary',
-      listed: listed.length,
-      matchingInspection: listed.filter(record => ids.has(String(record?.attributes?.inspection_id))).length,
-      eligiblePublished: records.length,
-      usableViewerLinks: records.filter(record => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(record.id || '')).length });
-    return records;
-  }
-
-  async function getReports() {
-    if (reportCache?.expiresAt > nowMs()) return reportCache.records;
-    if (!reportPending) {
-      reportPending = (async () => {
-        try {
-          const records = await fetchRankingPages(upstreamGet, '/v2/reports', {});
-          log({ event: 'spectora_report_lookup', stage: 'report_list', result: 'succeeded', count: records.length });
-          reportCache = { records, expiresAt: nowMs() + 60 * 1000 };
-          return records;
-        } catch (error) {
-          reportLookupError('report_list', error);
-          // Report API availability must never hide the inspection history.
-          reportCache = { records: [], expiresAt: nowMs() + 30 * 1000 };
-          return [];
-        }
-      })().finally(() => { reportPending = null; });
-    }
-    return reportPending;
-  }
   let availabilityCache = null;
   let availabilityPending = null;
   let availabilityRetryAt = 0;
@@ -776,7 +721,6 @@ function createPortal(options = {}) {
     }));
     if (!Array.isArray(inspections.data)) throw authError('Upstream inspections data missing', 403);
     const authorizedInspections = scopedInspections(inspections.data, scope, connectionId);
-    const reports = await getInspectionReports(authorizedInspections);
     const attrs = connection.attributes || {};
     const statAttrs = stats.data?.[0]?.attributes || {};
     const rankings = await getAgentRankings(connectionId);
@@ -803,7 +747,7 @@ function createPortal(options = {}) {
       },
       tier: sample.tier,
       inspections: authorizedInspections.map(inspection => mapInspection(inspection, connectionId,
-        inspectionReports(inspection, reports, Array.isArray(inspections.included) ? inspections.included : [], scope)))
+        inspectionReports(inspection, Array.isArray(inspections.included) ? inspections.included : [])))
     };
   }
 
