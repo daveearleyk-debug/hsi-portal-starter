@@ -1,17 +1,17 @@
-HSI Agent Portal — PDF Report Links
+HSI Agent Portal — Corrected PDF Report Links
 
-Upload server.js and public/app.js to the same locations in your GitHub repository, commit, and let Render finish deploying. The included test files can also be uploaded to keep the repository tests current. Keep the existing assets and environment settings.
+Upload server.js and public/app.js to the same locations in GitHub, commit, and wait for Render to finish deploying. Then refresh the portal. The test files are included to keep repository tests current.
 
-Changes
-- Inspection history now shows View report PDF instead of the client portal link.
-- Published Spectora PDF links are matched to their inspection. Multiple reports get separate named links.
-- Recognizable inspection/WETT report PDFs in Documents are also linked, including older records. Internal documents and invoices/agreements are excluded.
-- Records stay visible with no report link when no suitable PDF is returned.
-- A report API failure does not prevent inspection history from loading.
-- Existing contact card, WhatsApp icon, filters and calendar are retained.
+Report selection uses the inspection date, preserving its local calendar day:
+- Before January 1, 2023: recognizable report PDFs from Documents only.
+- January 1, 2023 onward: Spectora Inspection Report PDFs only, using the actual pdf_url from GET /v2/reports/{report_id}.
+- No Documents fallback for January 2023 onward.
+- Null/restricted/unpublished/missing PDFs leave the inspection visible without a report link.
 
-Verification
-129 automated checks passed, plus JavaScript syntax checks. Tested native and uploaded reports, multiple-page matching, inaccessible/absent PDFs, unrelated documents, canceled records, and agent/company scoping. The /v2/reports endpoint exists, but authenticated native PDF retrieval and opening the links still require verification after deployment. Existing source safety scan flags synthetic test URLs in test fixtures/history; no API keys are included in this package.
+Correction
+The previous package read the report list, whose schema omits pdf_url. This version lists the report IDs, matches them to authorized inspections, then retrieves individual report details to obtain pdf_url. It never constructs a PDF link from an inspection slug or report ID. Report requests use bounded concurrency and short caches. Link navigation lets the browser follow PDF-host redirects normally; the portal does not download or cache PDF contents or bypass Spectora payment/agreement restrictions.
 
-After deployment
-Open a known recent report and an older Documents report, and verify a record with no PDF stays visible without a link. Refresh the portal if it was already open.
+Validation
+131 automated tests passed plus JavaScript syntax and diff checks. Regression tests model a report list without pdf_url and verify the individual detail lookup, the exact January 1 cutoff, missing/restricted PDFs, older Documents, caching and report/inspection/agent matching. Authenticated live report retrieval still needs checking after deployment.
+
+All existing contact-card, WhatsApp, filter and calendar features are retained.

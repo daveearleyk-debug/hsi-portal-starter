@@ -95,8 +95,7 @@ test('live lookup uses the exact connection route and documented filters', async
   assert.deepEqual(upstream.paths, [
     '/v2/connections/17',
     '/v2/connection_stats?filter[id]=17&page[size]=1',
-    '/v2/inspections?filter[connection_id]=17&include=buying_agent%2Cselling_agent%2Ccompany%2Cinspection_attachments&sort=-datetime&page[size]=200',
-    '/v2/reports?page[size]=200&page[number]=1'
+    '/v2/inspections?filter[connection_id]=17&include=buying_agent%2Cselling_agent%2Ccompany%2Cinspection_attachments&sort=-datetime&page[size]=200'
   ]);
   assert.equal(Object.hasOwn(JSON.parse(response.body).agent, 'connectionId'), false);
 });

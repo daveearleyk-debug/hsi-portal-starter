@@ -347,13 +347,18 @@ function reportPdfUrl(value) {
 
 function inspectionReports(insp, reports, included, companyId) {
   if (insp.attributes?.canceled_at) return [];
+  const date = calendarDate(insp.attributes?.datetime);
+  if (!date) return [];
   const links = new Map();
-  for (const record of reports) {
-    const attrs = record?.attributes || {};
-    if (String(attrs.inspection_id) !== String(insp.id) || attrs.published !== true) continue;
-    if (attrs.company_id != null && !matchesCompanyId(attrs.company_id, companyId)) continue;
-    const url = reportPdfUrl(attrs.pdf_url);
-    if (url) links.set(url, { name: attrs.name || 'Inspection report', url });
+  if (date >= '2023-01-01') {
+    for (const record of reports) {
+      const attrs = record?.attributes || {};
+      if (String(attrs.inspection_id) !== String(insp.id) || attrs.published !== true) continue;
+      if (attrs.company_id != null && !matchesCompanyId(attrs.company_id, companyId)) continue;
+      const url = reportPdfUrl(attrs.pdf_url);
+      if (url) links.set(url, { name: attrs.name || 'Inspection report', url });
+    }
+    return [...links.values()];
   }
   // Attachments must be explicitly linked to this authorized inspection.
   const references = insp.relationships?.inspection_attachments?.data;
@@ -379,7 +384,7 @@ function mapInspection(insp, connectionId, reports = []) {
   const isPreSale = isPreSaleInspection(insp, connectionId);
   return {
     classification: isPreSale ? 'Pre-sale inspection' : 'Buyer inspection',
-    date: attrs.datetime ? new Date(attrs.datetime).toISOString().slice(0, 10) : '',
+    date: calendarDate(attrs.datetime) || '',
     location: attrs.property_address || [attrs.property_city, attrs.property_state].filter(Boolean).join(', ') || 'Address unavailable',
     services: [attrs.service_names, attrs.service_add_on_names].filter(Boolean).join(' + '),
     inspector: attrs.inspector_name || '',
@@ -637,6 +642,54 @@ function createPortal(options = {}) {
   let rankingRetryAt = 0;
   let reportCache = null;
   let reportPending = null;
+  const reportDetails = new Map();
+  const reportDetailPending = new Map();
+
+  async function getReportDetail(record) {
+    const id = record?.id;
+    if (record?.type !== 'report' || typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,200}$/.test(id)) return null;
+    // The report list omits pdf_url. Only a single-report response supplies it.
+    const cached = reportDetails.get(id);
+    if (cached?.expiresAt > nowMs()) return cached.record;
+    if (!reportDetailPending.has(id)) {
+      const pending = (async () => {
+        let detail = null;
+        try {
+          const response = await upstreamGet(`/v2/reports/${encodeURIComponent(id)}`);
+          const candidate = response?.data;
+          if (candidate?.type === 'report' && candidate.id === id &&
+              String(candidate.attributes?.inspection_id) === String(record.attributes?.inspection_id)) detail = candidate;
+        } catch { /* Keep the history available if a report cannot be retrieved. */ }
+        if (reportDetails.size >= 2000) reportDetails.clear();
+        reportDetails.set(id, { record: detail, expiresAt: nowMs() + (detail ? 60000 : 30000) });
+        return detail;
+      })().finally(() => reportDetailPending.delete(id));
+      reportDetailPending.set(id, pending);
+    }
+    return reportDetailPending.get(id);
+  }
+
+  async function getInspectionReportDetails(inspections) {
+    const ids = new Set(inspections.filter(inspection => {
+      const date = calendarDate(inspection.attributes?.datetime);
+      return date && date >= '2023-01-01' && !inspection.attributes?.canceled_at;
+    }).map(inspection => String(inspection.id)));
+    if (!ids.size) return [];
+    const records = (await getReports()).filter(record => record?.type === 'report' &&
+      record.attributes?.published === true && ids.has(String(record.attributes?.inspection_id)) &&
+      (record.attributes.company_id == null || matchesCompanyId(record.attributes.company_id, config.companyId)));
+    const details = [];
+    // Bound concurrency so a long history cannot flood the upstream API.
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(4, records.length) }, async () => {
+      while (next < records.length) {
+        const record = await getReportDetail(records[next++]);
+        if (record) details.push(record);
+      }
+    }));
+    const byId = new Map(details.map(record => [record.id, record]));
+    return records.map(record => byId.get(record.id)).filter(Boolean);
+  }
 
   async function getReports() {
     if (reportCache?.expiresAt > nowMs()) return reportCache.records;
@@ -740,7 +793,7 @@ function createPortal(options = {}) {
     }));
     if (!Array.isArray(inspections.data)) throw authError('Upstream inspections data missing', 403);
     const authorizedInspections = scopedInspections(inspections.data, scope, connectionId);
-    const reports = authorizedInspections.length ? await getReports() : [];
+    const reports = await getInspectionReportDetails(authorizedInspections);
     const attrs = connection.attributes || {};
     const statAttrs = stats.data?.[0]?.attributes || {};
     const rankings = await getAgentRankings(connectionId);

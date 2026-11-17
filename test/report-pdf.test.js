@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { createPortal } = require('../server');
 const env = { PORTAL_MODE: 'live', PORTAL_RANKINGS_ENABLED: 'false', SPECTORA_API_KEY: 'synthetic-placeholder', SPECTORA_COMPANY_ID: '42', PORTAL_SIGNING_SECRET: 'synthetic-signing-secret-at-least-32-bytes' };
 function inspection(id, attrs = {}, attachmentIds = [], agent = '17') {
-  return { id, attributes: { datetime: '2022-11-01T12:00:00Z', ...attrs }, relationships: {
+  return { id, attributes: { datetime: '2024-11-01T12:00:00Z', ...attrs }, relationships: {
     company: { data: { id: '42', type: 'company' } }, buying_agent: { data: { id: agent, type: 'connection' } }, selling_agent: { data: null },
     inspection_attachments: { data: attachmentIds.map(id => ({ id, type: 'inspection_attachment' })) }
   } };
@@ -21,10 +21,14 @@ function app(rows, reports = [], included = [], fail = false) {
     paths.push(path);
     if (path.startsWith('/v2/connections/')) return { data: { id: '17', attributes: { company_id: 42 } } };
     if (path.startsWith('/v2/connection_stats')) return { data: [{ id: '17', attributes: { company_id: 42 } }] };
+    if (path.startsWith('/v2/reports/')) {
+      if (fail) throw new Error('Reports unavailable');
+      return {data: reports.flat().find(record => record.id === path.split('/').pop())};
+    }
     if (path.startsWith('/v2/reports?')) {
       if (fail) throw new Error('Reports unavailable');
       const page = Number(new URL(path, 'https://example.test').searchParams.get('page[number]'));
-      return { data: reports[page - 1] || [], meta: { pagination: { current: page, last: reports.length || 1, next: page < reports.length ? page + 1 : null } } };
+      return { data: (reports[page - 1] || []).map(record => { const {pdf_url, ...attributes} = record.attributes; return {...record, attributes}; }), meta: { pagination: { current: page, last: reports.length || 1, next: page < reports.length ? page + 1 : null } } };
     }
     return { data: rows, included };
   } });
@@ -40,10 +44,12 @@ test('PDFs are matched by authorized inspection, paginated, cached and restricte
   assert.equal(JSON.stringify(result).includes('portalUrl'), false);
   await portal.getAgentPayload('17');
   assert.equal(paths.filter(path => path.startsWith('/v2/reports?')).length, 2);
+  assert.equal(paths.filter(path => path.startsWith('/v2/reports/')).length, 4);
+  assert.equal(paths.some(path => /\/(b|c|g|h)$/.test(path)), false);
 });
 test('legacy Documents PDFs work; internal files, paperwork, unlinked and other-inspection files are excluded', async () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
-  const { portal } = app([inspection('1', {}, ids), inspection('2')], [], [
+  const { portal } = app([inspection('1', {datetime:'2022-12-31T23:59:59-07:00'}, ids), inspection('2')], [], [
     attachment('a', 1), attachment('b', 1, { internal_only: true }),
     attachment('c', 1, { name: 'Inspection Invoice', file_file_name: 'Inspection_Invoice.pdf' }),
     attachment('d', 2), attachment('unlinked', 1),
@@ -56,9 +62,39 @@ test('legacy Documents PDFs work; internal files, paperwork, unlinked and other-
   assert.deepEqual(result.inspections[1].reports, []);
 });
 test('unavailable native report service preserves history and usable uploaded reports', async () => {
-  const { portal } = app([inspection('1', {}, ['a']), inspection('2')], [], [attachment('a', 1)], true);
+  const { portal } = app([inspection('1', {datetime:'2022-12-31T12:00:00Z'}, ['a']), inspection('2')], [], [attachment('a', 1)], true);
   const result = await portal.getAgentPayload('17');
   assert.equal(result.inspections.length, 2);
   assert.equal(result.inspections[0].reports.length, 1);
   assert.deepEqual(result.inspections[1].reports, []);
+});
+
+test('January 1, 2023 is native PDF only; older records use Documents only', async () => {
+  const {portal, paths} = app([
+    inspection('1', {datetime:'2022-12-31T23:59:59-07:00'}, ['old']),
+    inspection('2', {datetime:'2023-01-01T00:00:00-07:00'}, ['new']),
+    inspection('3', {datetime:'2023-05-01T12:00:00Z'}, ['restricted']),
+    inspection('4', {datetime:'2024-01-01T12:00:00Z'}, ['unpublished'])
+  ], [[report('old-native',1),report('new-native',2),report('null-pdf',3,{pdf_url:null}),report('unpublished',4,{published:false})]], [attachment('old',1),attachment('new',2),attachment('restricted',3),attachment('unpublished',4)]);
+  const {inspections} = await portal.getAgentPayload('17');
+  assert.deepEqual(inspections.map(row => row.reports.map(report => report.url)), [
+    ['https://cdn.spectora.com/inspection_attachments/old.pdf'],
+    ['https://pdf.spectora.com/new-native'], [], []
+  ]);
+  assert.equal(paths.includes('/v2/reports/old-native'),false);
+  assert.equal(paths.includes('/v2/reports/unpublished'),false);
+});
+test('single-report response must match both report ID and authorized inspection', async () => {
+  const {portal} = app([inspection('1')],[[report('a',1)]]);
+  // The real upstream adapter is covered above; exercise mismatched response
+  // through a separately constructed portal to avoid accidental cross-linking.
+  const bad = createPortal({env,log:()=>{},upstreamGet:async path=>{
+    if(path.startsWith('/v2/connections/'))return {data:{id:'17',attributes:{company_id:42}}};
+    if(path.startsWith('/v2/connection_stats'))return {data:[{id:'17',attributes:{company_id:42}}]};
+    if(path.startsWith('/v2/reports/'))return {data:report('a',99)};
+    if(path.startsWith('/v2/reports?'))return {data:[report('a',1)]};
+    return {data:[inspection('1')]};
+  }});
+  assert.deepEqual((await bad.getAgentPayload('17')).inspections[0].reports,[]);
+  assert.equal((await portal.getAgentPayload('17')).inspections[0].reports.length,1);
 });
