@@ -645,6 +645,16 @@ function createPortal(options = {}) {
   const reportDetails = new Map();
   const reportDetailPending = new Map();
 
+  function reportLookupError(stage, error) {
+    const knownReasons = new Set(['Ranking records unavailable', 'Ranking page mismatch', 'Ranking pagination limit',
+      'Incomplete ranking pages', 'Ranking pagination mismatch', 'Incomplete ranking collection',
+      'Spectora API timeout', 'Spectora API response exceeded size limit', 'Spectora API returned malformed JSON']);
+    log({ event: 'spectora_report_lookup', stage, result: 'failed',
+      ...(error instanceof UpstreamHttpError ? { upstreamStatus: error.upstreamStatus } : {}),
+      reason: error instanceof UpstreamHttpError ? 'upstream_http_error'
+        : (knownReasons.has(error?.message) ? error.message : 'request_failed') });
+  }
+
   async function getReportDetail(record) {
     const id = record?.id;
     if (record?.type !== 'report' || typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,200}$/.test(id)) return null;
@@ -659,7 +669,11 @@ function createPortal(options = {}) {
           const candidate = response?.data;
           if (candidate?.type === 'report' && candidate.id === id &&
               String(candidate.attributes?.inspection_id) === String(record.attributes?.inspection_id)) detail = candidate;
-        } catch { /* Keep the history available if a report cannot be retrieved. */ }
+          if (!detail) log({ event: 'spectora_report_lookup', stage: 'report_detail', result: 'response_mismatch',
+            hasData: Boolean(candidate), hasAttributes: Boolean(candidate?.attributes),
+            reportIdMatches: candidate?.id === id,
+            inspectionIdMatches: String(candidate?.attributes?.inspection_id) === String(record.attributes?.inspection_id) });
+        } catch (error) { reportLookupError('report_detail', error); }
         if (reportDetails.size >= 2000) reportDetails.clear();
         reportDetails.set(id, { record: detail, expiresAt: nowMs() + (detail ? 60000 : 30000) });
         return detail;
@@ -675,7 +689,8 @@ function createPortal(options = {}) {
       return date && date >= '2023-01-01' && !inspection.attributes?.canceled_at;
     }).map(inspection => String(inspection.id)));
     if (!ids.size) return [];
-    const records = (await getReports()).filter(record => record?.type === 'report' &&
+    const listed = await getReports();
+    const records = listed.filter(record => record?.type === 'report' &&
       record.attributes?.published === true && ids.has(String(record.attributes?.inspection_id)) &&
       (record.attributes.company_id == null || matchesCompanyId(record.attributes.company_id, config.companyId)));
     const details = [];
@@ -688,7 +703,14 @@ function createPortal(options = {}) {
       }
     }));
     const byId = new Map(details.map(record => [record.id, record]));
-    return records.map(record => byId.get(record.id)).filter(Boolean);
+    const resolved = records.map(record => byId.get(record.id)).filter(Boolean);
+    log({ event: 'spectora_report_lookup', stage: 'report_summary',
+      listed: listed.length,
+      matchingInspection: listed.filter(record => ids.has(String(record?.attributes?.inspection_id))).length,
+      eligiblePublished: records.length, resolved: resolved.length,
+      nullPdfUrl: resolved.filter(record => record.attributes?.pdf_url == null).length,
+      usablePdfUrl: resolved.filter(record => record.attributes?.published === true && reportPdfUrl(record.attributes?.pdf_url)).length });
+    return resolved;
   }
 
   async function getReports() {
@@ -697,9 +719,11 @@ function createPortal(options = {}) {
       reportPending = (async () => {
         try {
           const records = await fetchRankingPages(upstreamGet, '/v2/reports', {});
+          log({ event: 'spectora_report_lookup', stage: 'report_list', result: 'succeeded', count: records.length });
           reportCache = { records, expiresAt: nowMs() + 60 * 1000 };
           return records;
-        } catch {
+        } catch (error) {
+          reportLookupError('report_list', error);
           // Report API availability must never hide the inspection history.
           reportCache = { records: [], expiresAt: nowMs() + 30 * 1000 };
           return [];
