@@ -85,9 +85,9 @@ test('relationship snapshot renders a separate pre-sale metric with its value',a
 });
 
 const filterRows = [
- {date:'2026-10-16',location:'212 Woolgar Ave',services:'Walk Through Inspection',classification:'Buyer inspection',inspector:'Example',status:'Report Published',portalUrl:'https://portal.example.test/inspection/first'},
- {date:'2025-02-01',location:'2 Ward Crescent',services:'Residential Inspection',classification:'Pre-sale inspection',inspector:'Example',status:'Report Published',portalUrl:'https://portal.example.test/inspection/second'},
- {date:'2026-01-01',location:'9 Woolgar Ave',services:'WETT Inspection',classification:'Buyer inspection',inspector:'Example',status:'Report Published',portalUrl:'https://portal.example.test/inspection/third'}
+ {date:'2026-10-16',location:'212 Woolgar Ave',services:'Walk Through Inspection',classification:'Buyer inspection',inspector:'Example',status:'Report Published',reports:[{name:'Inspection report',url:'https://pdf.spectora.com/first'}]},
+ {date:'2025-02-01',location:'2 Ward Crescent',services:'Residential Inspection',classification:'Pre-sale inspection',inspector:'Example',status:'Report Published',reports:[{name:'Inspection report',url:'https://pdf.spectora.com/second'}]},
+ {date:'2026-01-01',location:'9 Woolgar Ave',services:'WETT Inspection',classification:'Buyer inspection',inspector:'Example',status:'Report Published',reports:[{name:'Inspection report',url:'https://pdf.spectora.com/third'}]}
 ];
 function historyControls(state) {
  return {search:state.nodes.find(n=>n.id==='inspection-search'),type:state.nodes.find(n=>n.id==='inspection-type'),year:state.nodes.find(n=>n.id==='inspection-year'),clear:state.nodes.find(n=>n.textContent==='Clear filters'),count:state.nodes.find(n=>n.className==='history-count'),timeline:state.nodes.find(n=>n.className==='timeline')};
@@ -124,8 +124,8 @@ test('type and year filters combine, show empty results, and clear together',asy
 test('filtered cards retain their own inspection link and snapshot counts remain unchanged',async()=>{
  const state=await browser(token(),false,filterRows,{totalInspections:99});const c=historyControls(state);
  c.search.value='9 Woolgar';c.search.events.input();
- const card=visibleCards(c)[0];const anchor=card.children[1].children.find(n=>n.tag==='a');
- assert.equal(anchor.href,'https://portal.example.test/inspection/third');
+ const card=visibleCards(c)[0];const anchor=card.children[1].children.find(n=>n.tag==='p'&&n.children.some(c=>c.tag==='a')).children[0];
+ assert.equal(anchor.href,'https://pdf.spectora.com/third');
  const total=state.nodes.find(n=>n.className==='metric'&&n.children.some(child=>child.textContent==='Total'));
  assert.ok(total.children.some(n=>n.textContent==='99'));
 });
@@ -204,4 +204,10 @@ test('cancelling contact sharing does not trigger downloads, while a real share 
   await state.nodes.find(n=>n.className==='action contact-card-share').events.click();
   assert.equal(state.nodes.find(n=>n.className==='contact-card-download').hidden,mode==='cancel');
  }
+});
+
+test('history keeps records without report PDFs visible without report links',async()=>{
+ const state=await browser(token(),false,[{...filterRows[0],reports:[]},{...filterRows[1],reports:undefined,portalUrl:'https://portal.spectora.com/inspection/old'}]);
+ const c=historyControls(state);assert.equal(visibleCards(c).length,2);
+ assert.equal(state.nodes.some(n=>n.tag==='a'&&(/report PDF|inspection portal/.test(n.textContent||''))),false);
 });

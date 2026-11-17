@@ -178,10 +178,12 @@ function renderInspectionHistory(inspections) {
               class: 'inspection-meta',
               text: `${inspection.services} | ${inspection.inspector} | ${inspection.status}`
             }),
-            ...(inspection.portalUrl ? [el('a', {
-              href: inspection.portalUrl, target: '_blank', rel: 'noopener noreferrer',
-              text: 'Open inspection portal (opens in a new tab)'
-            })] : [])
+            ...(inspection.reports || []).map(report => el('p', {}, [el('a', {
+              href: report.url, target: '_blank', rel: 'noopener noreferrer',
+              text: inspection.reports.length > 1
+                ? `View report PDF: ${report.name} (opens in a new tab)`
+                : 'View report PDF (opens in a new tab)'
+            })]))
           ])
         ])
       );

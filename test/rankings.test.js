@@ -51,7 +51,7 @@ function integration({fail=false}={}){
   const page=Number(url.searchParams.get('page[number]'));
   return {data:page===1?rows.slice(0,3):rows.slice(3),meta:{pagination:{current:page,last:2,records:6,...(page===1?{next:2}:{})}}};
  }});
- return {portal,calls,advance(ms){now+=ms},globalCalls(){return calls.filter(p=>!p.includes('filter[')&&!p.startsWith('/v2/connections/')).length}};
+ return {portal,calls,advance(ms){now+=ms},globalCalls(){return calls.filter(p=>!p.includes('filter[')&&!p.startsWith('/v2/connections/')&&!p.startsWith('/v2/reports?')).length}};
 }
 test('live portal includes only the authorized agent ranking and caches shared global work for 15 minutes',async()=>{
  const fixture=integration();
