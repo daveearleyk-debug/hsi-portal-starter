@@ -85,6 +85,21 @@ test('Spectora Rails Mountain zone name is normalized and 30-minute availability
   assert.deepEqual(payload.days[0].slots, ['2026-11-16T13:00:00-07:00']);
 });
 
+test('Spectora Alberta zone is normalized and preserves local times in winter and summer', () => {
+  for (const [day, offset] of [['2026-11-16', '-07:00'], ['2026-07-16', '-06:00']]) {
+    const clock = Date.parse(`${day}T08:00:00${offset}`);
+    const range = nextSevenDays(clock, 'America/Edmonton');
+    const response = fixture();
+    response.meta.time_zone = 'Alberta';
+    response.data[0].attributes.days = range.map((date, i) => ({date, slots: i === 0 ? [{datetime: `${date}T09:00:00${offset}`}] : []}));
+    const payload = normalizeAvailability(response, '29852', range, clock);
+    assert.equal(payload.timeZone, 'America/Edmonton');
+    assert.equal(payload.available, true);
+    assert.deepEqual(payload.days[0].slots, [`${day}T09:00:00${offset}`]);
+    assert.equal(new Intl.DateTimeFormat('en-CA', {timeZone: payload.timeZone, hour: '2-digit', hourCycle: 'h23'}).format(new Date(payload.days[0].slots[0])), '09');
+  }
+});
+
 test('an unrecognized upstream zone cannot silently shift available times', () => {
   const response = fixture(); response.meta.time_zone = 'Unrecognized Company Zone';
   assert.throws(() => normalizeAvailability(response, '29852', dates, now));
